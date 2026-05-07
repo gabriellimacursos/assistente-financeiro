@@ -88,7 +88,7 @@ export default function RegistrarPage() {
     if (!text.trim()) return
     setPendingText(text.trim())
     setStep('processing')
-    const result = await interpretFinancialInput(text.trim(), activeMode)
+    const result = await interpretFinancialInput(text.trim(), activeMode, activeProfile)
     setInterpretation(result)
     setEditAmount(result.amount.toString())
 
