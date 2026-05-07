@@ -12,6 +12,7 @@ Data: 2026-05-07
 - Em desenvolvimento, a rota devolve `detail` quando falha; em producao, nao expoe detalhe interno.
 - O fallback local em `lib/ai/interpreter.ts` continua ativo, mas agora registra no console quando for usado.
 - Adicionado `public/manifest.json`, porque o app ja referenciava `/manifest.json`.
+- Removido `app/(app)/page.tsx`, que criava uma segunda rota `/` dentro de route group e fazia o deploy da Vercel falhar no trace de `page_client-reference-manifest.js`.
 
 ## O que nao foi alterado
 
@@ -34,4 +35,3 @@ Variaveis configuradas em Production:
 
 - `npm run build`
 - Teste local de `POST /api/interpret` com frase financeira simples
-
