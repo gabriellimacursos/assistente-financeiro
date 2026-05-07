@@ -52,6 +52,11 @@ Regras:
 - Se não conseguir identificar o tipo (entrada ou saída), defina needsClarification como true e pergunte
 - Se não conseguir identificar o valor, defina needsClarification como true e pergunte
 - O campo "confidence" vai de 0 a 1 (1 = certeza absoluta)
+- O campo "description" deve ser uma descrição curta, clara e útil para aparecer na timeline do usuário
+- Não copie a frase inteira do usuário em "description"; transforme em um resumo natural, com contexto quando houver
+- Exemplos de "description": "Gasolina no posto", "Venda de curso online", "Almoço no restaurante", "Pagamento de internet", "Recebimento de consultoria"
+- Se houver nome de loja, cliente, serviço, curso, cartão ou local na frase, inclua esse detalhe na descrição
+- Evite descrições genéricas como "Gasto" ou "Receita" quando houver informação melhor
 - Categorias disponíveis: Alimentação, Mercado, Combustível, Transporte, Casa, Saúde, Família, Lazer, Academia, Assinaturas, Cartão, Aluguel, Salário, Freelance, Venda, Aluguel recebido, Investimento, Curso Online, Curso Presencial, Assistência Técnica, Consultoria, Ferramentas, Materiais, Marketing, Tráfego Pago, Plataforma, Professor/Parceiro, Conta Fixa, Equipamentos, Impostos, Pró-labore, Outros
 
 Formato de resposta:

@@ -481,6 +481,11 @@ export default function RegistrarPage() {
               {interpretation.type === 'income' ? '↑ Entrada' : '↓ Saída'} · toque para editar o valor
             </p>
             <p className="text-4xl font-bold">{formatCurrency(interpretation.amount)}</p>
+            {pendingText && (
+              <p className="text-white/75 text-sm mt-3 leading-snug break-words">
+                {pendingText}
+              </p>
+            )}
           </div>
         </div>
 
@@ -492,17 +497,6 @@ export default function RegistrarPage() {
             onChange={e => setInterpretation({ ...interpretation, description: e.target.value })}
             rows={2}
             placeholder="Ex: Gasolina no posto"
-            className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm text-slate-700 outline-none focus:border-primary-400 bg-white resize-none transition-all"
-          />
-        </div>
-
-        {/* Texto original editável */}
-        <div className="space-y-1">
-          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider px-1">O que você disse</p>
-          <textarea
-            value={pendingText}
-            onChange={e => setPendingText(e.target.value)}
-            rows={2}
             className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm text-slate-700 outline-none focus:border-primary-400 bg-white resize-none transition-all"
           />
         </div>
