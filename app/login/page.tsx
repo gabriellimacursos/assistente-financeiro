@@ -1,0 +1,485 @@
+'use client'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  TrendingUp, Plus, Check, X, Eye, EyeOff, ChevronRight,
+  Briefcase, User2, Laptop, TrendingDown, Shield,
+} from 'lucide-react'
+import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { cn } from '@/lib/utils'
+import type { UserProfile, ProfileType } from '@/types'
+
+const PROFILE_COLORS = [
+  'from-primary-500 to-indigo-600',
+  'from-emerald-500 to-teal-600',
+  'from-rose-500 to-pink-600',
+  'from-amber-500 to-orange-500',
+  'from-violet-500 to-purple-600',
+  'from-cyan-500 to-sky-600',
+]
+
+const PROFILE_TYPES: { value: ProfileType; label: string; description: string; icon: React.ReactNode }[] = [
+  { value: 'entrepreneur', label: 'Empreendedor',  description: 'Tenho empresa ou negócio próprio', icon: <Briefcase className="w-5 h-5" /> },
+  { value: 'freelancer',   label: 'Autônomo',      description: 'Trabalho por conta própria / freelancer', icon: <Laptop className="w-5 h-5" /> },
+  { value: 'employee',     label: 'CLT / Salário', description: 'Tenho emprego com salário fixo', icon: <User2 className="w-5 h-5" /> },
+  { value: 'investor',     label: 'Investidor',    description: 'Vivo de rendimentos e investimentos', icon: <TrendingDown className="w-5 h-5" /> },
+  { value: 'other',        label: 'Outro',         description: 'Outro tipo de renda', icon: <TrendingUp className="w-5 h-5" /> },
+]
+
+const INCOME_OPTIONS: Record<ProfileType, string[]> = {
+  entrepreneur: ['Curso Online', 'Curso Presencial', 'Assistência Técnica', 'Consultoria', 'Venda de Produto', 'Parceria', 'Outros'],
+  freelancer:   ['Freelance', 'Serviço Prestado', 'Projeto', 'Consultoria', 'Mentoria', 'Outros'],
+  employee:     ['Salário', 'Bônus', 'PLR', 'Comissão', 'Hora Extra', 'Outros'],
+  investor:     ['Dividendos', 'Aluguel recebido', 'Renda Fixa', 'Fundos', 'Cripto', 'Outros'],
+  other:        ['Salário', 'Freelance', 'Venda', 'Investimento', 'Outros'],
+}
+
+const EXPENSE_OPTIONS = [
+  'Combustível', 'Alimentação', 'Mercado', 'Aluguel', 'Internet', 'Energia',
+  'Saúde', 'Educação', 'Academia', 'Lazer', 'Cartão', 'Transporte', 'Outros',
+]
+
+function getInitials(name: string) {
+  return name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+}
+
+// ─── Sistema PIN — protege o app antes de ver os perfis ───────────────────
+const SYSTEM_PIN_KEY = 'app-system-pin'
+
+function useSystemPin() {
+  const stored = typeof window !== 'undefined' ? localStorage.getItem(SYSTEM_PIN_KEY) : null
+  return { systemPin: stored, hasSystemPin: !!stored }
+}
+
+export default function LoginPage() {
+  const router = useRouter()
+  const { profiles, setActiveProfileId, addProfile } = useFinanceStore()
+  const { systemPin, hasSystemPin } = useSystemPin()
+
+  // Sistema: desbloqueio
+  const [systemUnlocked, setSystemUnlocked] = useState(!hasSystemPin)
+  const [sysPin, setSysPin] = useState('')
+  const [sysPinError, setSysPinError] = useState(false)
+  const [showSysPin, setShowSysPin] = useState(false)
+
+  // Perfil selecionado — se não há perfis, vai direto para criação
+  const [step, setStep] = useState<'profiles' | 'pin' | 'add-1' | 'add-2' | 'add-3'>(
+    profiles.length === 0 ? 'add-1' : 'profiles'
+  )
+  const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null)
+  const [pinInput, setPinInput] = useState('')
+  const [pinError, setPinError] = useState(false)
+  const [showPin, setShowPin] = useState(false)
+
+  // Novo perfil — dados base
+  const [newName, setNewName] = useState('')
+  const [newColor, setNewColor] = useState(PROFILE_COLORS[1])
+  const [newPin, setNewPin] = useState('')
+  // Onboarding financeiro
+  const [profileType, setProfileType] = useState<ProfileType | null>(null)
+  const [selectedIncome, setSelectedIncome] = useState<Set<string>>(new Set())
+  const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set())
+  const [preferredMode, setPreferredMode] = useState<'business' | 'personal' | 'both'>('both')
+
+  // ── Sistema desbloqueio ──────────────────────────────────────────────────
+  function handleSystemUnlock() {
+    if (sysPin === systemPin) {
+      setSystemUnlocked(true)
+      setSysPin('')
+    } else {
+      setSysPinError(true)
+      setSysPin('')
+    }
+  }
+
+  // ── Selecionar perfil ────────────────────────────────────────────────────
+  function handleSelectProfile(profile: UserProfile) {
+    if (profile.pin) {
+      setSelectedProfile(profile)
+      setPinInput('')
+      setPinError(false)
+      setStep('pin')
+    } else {
+      setActiveProfileId(profile.id)
+      router.push('/registrar')
+    }
+  }
+
+  function handlePinSubmit() {
+    if (!selectedProfile) return
+    if (pinInput === selectedProfile.pin) {
+      setActiveProfileId(selectedProfile.id)
+      router.push('/registrar')
+    } else {
+      setPinError(true)
+      setPinInput('')
+    }
+  }
+
+  // ── Criar perfil ─────────────────────────────────────────────────────────
+  function handleCreateProfile() {
+    const name = newName.trim()
+    if (!name || !profileType) return
+    const profile: UserProfile = {
+      id: Date.now().toString(),
+      name,
+      initials: getInitials(name),
+      color: newColor,
+      pin: newPin.length === 4 ? newPin : undefined,
+      isOwner: profiles.filter(p => p.isOwner).length === 0,
+      created_at: new Date().toISOString(),
+      profileType,
+      incomeSources: Array.from(selectedIncome),
+      typicalExpenses: Array.from(selectedExpenses),
+      preferredMode,
+    }
+    addProfile(profile)
+    // Reset
+    setNewName(''); setNewColor(PROFILE_COLORS[1]); setNewPin('')
+    setProfileType(null); setSelectedIncome(new Set()); setSelectedExpenses(new Set())
+    setPreferredMode('both')
+    setStep('profiles')
+  }
+
+  function toggleSet(set: Set<string>, setFn: (s: Set<string>) => void, value: string) {
+    const next = new Set(set)
+    if (next.has(value)) next.delete(value)
+    else next.add(value)
+    setFn(next)
+  }
+
+  // ── TELA: desbloqueio do sistema ─────────────────────────────────────────
+  if (!systemUnlocked) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFF] flex items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6 text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto">
+            <Shield className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Assistente Financeiro</h2>
+            <p className="text-slate-500 text-sm mt-1">Digite o PIN do sistema para continuar</p>
+          </div>
+          <div className="relative">
+            <input
+              autoFocus
+              type={showSysPin ? 'text' : 'password'}
+              inputMode="numeric"
+              maxLength={4}
+              value={sysPin}
+              onChange={e => { setSysPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setSysPinError(false) }}
+              onKeyDown={e => e.key === 'Enter' && sysPin.length === 4 && handleSystemUnlock()}
+              placeholder="• • • •"
+              className={cn(
+                'w-full text-center text-3xl font-bold tracking-[0.5em] px-4 py-5 rounded-2xl border-2 outline-none transition-all bg-white',
+                sysPinError ? 'border-expense-400 text-expense-500' : 'border-slate-200 focus:border-primary-400 text-slate-800'
+              )}
+            />
+            <button onClick={() => setShowSysPin(!showSysPin)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+              {showSysPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+          {sysPinError && <p className="text-sm text-expense-500 font-medium">PIN incorreto</p>}
+          <button onClick={handleSystemUnlock} disabled={sysPin.length !== 4}
+            className="btn-primary w-full py-4 flex items-center justify-center gap-2 disabled:opacity-40">
+            <Check className="w-5 h-5" /> Entrar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Hero desktop */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-500 to-indigo-400 flex-col justify-between p-12 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-16">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+            <span className="text-xl font-bold">Assistente Financeiro</span>
+          </div>
+          <h1 className="text-4xl font-bold leading-tight mb-6">
+            Controle financeiro<br />
+            <span className="text-white/80">que funciona por voz</span>
+          </h1>
+          <p className="text-white/70 text-lg leading-relaxed max-w-sm">
+            Registre receitas e despesas falando naturalmente.
+            A IA interpreta e classifica automaticamente para o seu perfil.
+          </p>
+        </div>
+        <div className="relative z-10 grid grid-cols-2 gap-4">
+          {[
+            { icon: '🎙️', label: 'Registro por voz' },
+            { icon: '🤖', label: 'IA personalizada' },
+            { icon: '📊', label: 'Dashboard visual' },
+            { icon: '👥', label: 'Multi-perfis' },
+          ].map(f => (
+            <div key={f.label} className="bg-white/10 rounded-2xl p-4 backdrop-blur-sm">
+              <div className="text-2xl mb-1">{f.icon}</div>
+              <div className="text-sm font-medium text-white/90">{f.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Painel direito */}
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-[#F8FAFF]">
+        <div className="w-full max-w-md">
+
+          {/* Logo mobile */}
+          <div className="flex items-center gap-3 mb-10 lg:hidden">
+            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-xl font-bold text-slate-800">Assistente Financeiro</span>
+          </div>
+
+          {/* ── Seleção de perfil ── */}
+          {step === 'profiles' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-1">Quem está usando?</h2>
+                <p className="text-slate-500 text-sm">Selecione seu perfil para continuar</p>
+              </div>
+              <div className="space-y-3">
+                {profiles.map(profile => (
+                  <button key={profile.id} onClick={() => handleSelectProfile(profile)}
+                    className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border-2 border-slate-100 hover:border-primary-300 hover:bg-primary-50 transition-all active:scale-[0.99] group">
+                    <div className={cn('w-12 h-12 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-lg shrink-0', profile.color)}>
+                      {profile.initials}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-bold text-slate-800">{profile.name}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {profile.profileType
+                          ? PROFILE_TYPES.find(t => t.value === profile.profileType)?.label
+                          : profile.isOwner ? 'Dono do sistema' : 'Membro'}
+                        {profile.pin ? ' · 🔒 PIN' : ''}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-400 transition-colors" />
+                  </button>
+                ))}
+                <button onClick={() => setStep('add-1')}
+                  className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border-2 border-dashed border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-all text-slate-400 hover:text-primary-600">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0">
+                    <Plus className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm">Adicionar perfil</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── PIN de perfil ── */}
+          {step === 'pin' && selectedProfile && (
+            <div className="space-y-6">
+              <button onClick={() => setStep('profiles')} className="text-sm text-slate-400 hover:text-slate-600">← Voltar</button>
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className={cn('w-20 h-20 rounded-3xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-3xl', selectedProfile.color)}>
+                  {selectedProfile.initials}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">{selectedProfile.name}</h2>
+                  <p className="text-slate-500 text-sm">PIN de 4 dígitos</p>
+                </div>
+              </div>
+              <div className="relative">
+                <input autoFocus type={showPin ? 'text' : 'password'} inputMode="numeric" maxLength={4}
+                  value={pinInput}
+                  onChange={e => { setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4)); setPinError(false) }}
+                  onKeyDown={e => e.key === 'Enter' && pinInput.length === 4 && handlePinSubmit()}
+                  placeholder="• • • •"
+                  className={cn('w-full text-center text-3xl font-bold tracking-[0.5em] px-4 py-5 rounded-2xl border-2 outline-none transition-all bg-white',
+                    pinError ? 'border-expense-400 text-expense-500' : 'border-slate-200 focus:border-primary-400 text-slate-800')} />
+                <button onClick={() => setShowPin(!showPin)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {pinError && <p className="text-center text-sm text-expense-500 font-medium">PIN incorreto</p>}
+              <button onClick={handlePinSubmit} disabled={pinInput.length !== 4}
+                className="btn-primary w-full flex items-center justify-center gap-2 py-4 disabled:opacity-40">
+                <Check className="w-5 h-5" /> Entrar
+              </button>
+            </div>
+          )}
+
+          {/* ── Add Step 1: dados básicos ── */}
+          {step === 'add-1' && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                {profiles.length > 0 && (
+                  <button onClick={() => setStep('profiles')} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200">
+                    <X className="w-5 h-5 text-slate-500" />
+                  </button>
+                )}
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">
+                    {profiles.length === 0 ? 'Bem-vindo! Crie seu perfil' : 'Novo perfil'}
+                  </h2>
+                  <p className="text-xs text-slate-400">Passo 1 de 3 · Dados básicos</p>
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <div className={cn('w-20 h-20 rounded-3xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-2xl', newColor)}>
+                  {newName ? getInitials(newName) : '?'}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Nome</label>
+                <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
+                  placeholder="Ex: Gabriel Lima"
+                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm font-medium text-slate-800 outline-none focus:border-primary-400 transition-all bg-white" />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Cor</label>
+                <div className="flex gap-2 flex-wrap">
+                  {PROFILE_COLORS.map(color => (
+                    <button key={color} onClick={() => setNewColor(color)}
+                      className={cn('w-10 h-10 rounded-xl bg-gradient-to-br transition-all', color,
+                        newColor === color ? 'ring-2 ring-offset-2 ring-primary-500 scale-110' : 'hover:scale-105')} />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">PIN de acesso (opcional)</label>
+                <input type="password" inputMode="numeric" maxLength={4}
+                  value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="4 dígitos — deixe em branco para sem PIN"
+                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm font-medium text-slate-800 outline-none focus:border-primary-400 transition-all bg-white tracking-widest" />
+              </div>
+
+              <button onClick={() => setStep('add-2')} disabled={!newName.trim()}
+                className="btn-primary w-full flex items-center justify-center gap-2 py-4 disabled:opacity-40">
+                Próximo <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
+          {/* ── Add Step 2: tipo de perfil + fontes de renda ── */}
+          {step === 'add-2' && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setStep('add-1')} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200">
+                  <X className="w-4 h-4 text-slate-500" />
+                </button>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">Perfil financeiro</h2>
+                  <p className="text-xs text-slate-400">Passo 2 de 3 · Fontes de renda</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Como você ganha dinheiro?</label>
+                <div className="space-y-2">
+                  {PROFILE_TYPES.map(pt => (
+                    <button key={pt.value} onClick={() => { setProfileType(pt.value); setSelectedIncome(new Set()) }}
+                      className={cn('w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 transition-all text-left',
+                        profileType === pt.value ? 'bg-primary-50 border-primary-400 text-primary-700' : 'border-slate-200 text-slate-700 hover:border-slate-300')}>
+                      <span className={cn('shrink-0', profileType === pt.value ? 'text-primary-500' : 'text-slate-400')}>{pt.icon}</span>
+                      <div>
+                        <p className="font-semibold text-sm">{pt.label}</p>
+                        <p className="text-xs opacity-70">{pt.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {profileType && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Principais fontes de renda (selecione todas)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {INCOME_OPTIONS[profileType].map(src => (
+                      <button key={src} onClick={() => toggleSet(selectedIncome, setSelectedIncome, src)}
+                        className={cn('px-3 py-2 rounded-xl border-2 text-xs font-semibold transition-all',
+                          selectedIncome.has(src) ? 'bg-income-500 border-income-500 text-white' : 'border-slate-200 text-slate-600 hover:border-income-300')}>
+                        {src}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Usa mais qual conta?</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'business', label: '🏢 Empresa' },
+                    { value: 'personal', label: '👤 Pessoal' },
+                    { value: 'both',     label: '↕ Ambos' },
+                  ] as const).map(opt => (
+                    <button key={opt.value} onClick={() => setPreferredMode(opt.value)}
+                      className={cn('py-2.5 rounded-xl border-2 text-xs font-semibold transition-all',
+                        preferredMode === opt.value ? 'bg-primary-50 border-primary-400 text-primary-700' : 'border-slate-200 text-slate-600 hover:border-slate-300')}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button onClick={() => setStep('add-3')} disabled={!profileType}
+                className="btn-primary w-full flex items-center justify-center gap-2 py-4 disabled:opacity-40">
+                Próximo <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
+          {/* ── Add Step 3: despesas típicas ── */}
+          {step === 'add-3' && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setStep('add-2')} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200">
+                  <X className="w-4 h-4 text-slate-500" />
+                </button>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">Gastos frequentes</h2>
+                  <p className="text-xs text-slate-400">Passo 3 de 3 · Despesas comuns</p>
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-500">Selecione as categorias em que você mais gasta. Isso ajuda a IA a classificar automaticamente.</p>
+
+              <div className="flex flex-wrap gap-2">
+                {EXPENSE_OPTIONS.map(exp => (
+                  <button key={exp} onClick={() => toggleSet(selectedExpenses, setSelectedExpenses, exp)}
+                    className={cn('px-3 py-2 rounded-xl border-2 text-xs font-semibold transition-all',
+                      selectedExpenses.has(exp) ? 'bg-expense-500 border-expense-500 text-white' : 'border-slate-200 text-slate-600 hover:border-expense-300')}>
+                    {exp}
+                  </button>
+                ))}
+              </div>
+
+              {/* Resumo */}
+              <div className="bg-slate-50 rounded-2xl p-4 space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className={cn('w-8 h-8 rounded-xl bg-gradient-to-br shrink-0', newColor)} />
+                  <p className="font-bold text-slate-800">{newName}</p>
+                </div>
+                <p className="text-slate-500 text-xs">
+                  {PROFILE_TYPES.find(t => t.value === profileType)?.label}
+                  {selectedIncome.size > 0 && ` · ${Array.from(selectedIncome).slice(0, 2).join(', ')}${selectedIncome.size > 2 ? '…' : ''}`}
+                </p>
+              </div>
+
+              <button onClick={handleCreateProfile}
+                className="btn-primary w-full flex items-center justify-center gap-2 py-4">
+                <Check className="w-5 h-5" /> Criar perfil
+              </button>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #F8FAFF;
+    --card: #FFFFFF;
+    --border: #E8ECFF;
+    --income: #10B981;
+    --expense: #F43F5E;
+    --primary: #6366F1;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-[#F8FAFF] text-slate-800;
+    overscroll-behavior: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-white/60;
+  }
+  .card-hover {
+    @apply card transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5;
+  }
+  .btn-primary {
+    @apply bg-primary-500 text-white font-semibold rounded-2xl px-6 py-3.5
+           hover:bg-primary-600 active:scale-[0.98] transition-all duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-slate-100 text-slate-700 font-semibold rounded-2xl px-6 py-3.5
+           hover:bg-slate-200 active:scale-[0.98] transition-all duration-150;
+  }
+  .btn-danger {
+    @apply bg-expense-50 text-expense-600 font-semibold rounded-2xl px-6 py-3.5
+           hover:bg-expense-500 hover:text-white active:scale-[0.98] transition-all duration-150;
+  }
+  .income-text { @apply text-income-500; }
+  .expense-text { @apply text-expense-500; }
+  .income-bg { @apply bg-income-50; }
+  .expense-bg { @apply bg-expense-50; }
+  .badge-income {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold
+           bg-income-50 text-income-600;
+  }
+  .badge-expense {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold
+           bg-expense-50 text-expense-600;
+  }
+  .badge-business {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold
+           bg-primary-50 text-primary-600;
+  }
+  .badge-personal {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold
+           bg-slate-100 text-slate-600;
+  }
+}
+
+/* Ripple effect for voice button */
+@keyframes ripple {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.ripple {
+  animation: ripple 1.4s linear infinite;
+}
+.ripple-delay {
+  animation: ripple 1.4s linear 0.5s infinite;
+}
+
+/* Waveform bars */
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+.wave-bar { animation: wave 0.8s ease-in-out infinite; }
+.wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.wave-bar:nth-child(5) { animation-delay: 0.15s; }
+
+/* Fade animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fadeUp 0.4s ease-out forwards; }
+.delay-100 { animation-delay: 0.1s; opacity: 0; }
+.delay-200 { animation-delay: 0.2s; opacity: 0; }
+.delay-300 { animation-delay: 0.3s; opacity: 0; }
