@@ -1,7 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const openAiApiKey = process.env.OPENAI_API_KEY
+const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+const client = openAiApiKey ? new OpenAI({ apiKey: openAiApiKey }) : null
+
+const INTERPRETATION_SCHEMA = {
+  name: 'financial_interpretation',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      type: { type: 'string', enum: ['income', 'expense'] },
+      amount: { type: 'number' },
+      mode: { type: 'string', enum: ['personal', 'business'] },
+      category: { type: 'string' },
+      description: { type: 'string' },
+      confidence: { type: 'number', minimum: 0, maximum: 1 },
+      needsClarification: { type: 'boolean' },
+      clarificationQuestion: { type: ['string', 'null'] },
+      clarificationOptions: {
+        anyOf: [
+          { type: 'null' },
+          { type: 'array', items: { type: 'string' } },
+        ],
+      },
+      recurrenceSuggestion: { type: 'boolean' },
+    },
+    required: [
+      'type',
+      'amount',
+      'mode',
+      'category',
+      'description',
+      'confidence',
+      'needsClarification',
+      'clarificationQuestion',
+      'clarificationOptions',
+      'recurrenceSuggestion',
+    ],
+  },
+} as const
 
 const SYSTEM_PROMPT = `Você é um assistente financeiro pessoal brasileiro. Sua função é interpretar frases em português faladas por voz e extrair os dados de uma transação financeira.
 
@@ -30,6 +70,13 @@ Formato de resposta:
 
 export async function POST(req: NextRequest) {
   try {
+    if (!client) {
+      return NextResponse.json(
+        { error: 'OPENAI_API_KEY não configurada no servidor' },
+        { status: 503 }
+      )
+    }
+
     const body = await req.json()
     const { text, profileContext } = body as {
       text: string
@@ -56,23 +103,46 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT + userContext },
         { role: 'user', content: text },
       ],
       temperature: 0.1,
       max_tokens: 300,
-      response_format: { type: 'json_object' },
+      response_format: {
+        type: 'json_schema',
+        json_schema: INTERPRETATION_SCHEMA,
+      },
     })
 
     const content = response.choices[0].message.content
     if (!content) throw new Error('Resposta vazia da IA')
 
     const parsed = JSON.parse(content)
+    if (
+      !['income', 'expense'].includes(parsed.type) ||
+      typeof parsed.amount !== 'number' ||
+      !['personal', 'business'].includes(parsed.mode) ||
+      typeof parsed.category !== 'string' ||
+      typeof parsed.description !== 'string' ||
+      typeof parsed.confidence !== 'number' ||
+      typeof parsed.needsClarification !== 'boolean' ||
+      typeof parsed.recurrenceSuggestion !== 'boolean'
+    ) {
+      throw new Error('Resposta inválida da IA')
+    }
+
     return NextResponse.json(parsed)
   } catch (err) {
     console.error('[interpret] erro:', err)
-    return NextResponse.json({ error: 'Falha na interpretação' }, { status: 500 })
+    const message = err instanceof Error ? err.message : 'Erro desconhecido'
+    return NextResponse.json(
+      {
+        error: 'Falha na interpretação',
+        detail: process.env.NODE_ENV === 'production' ? undefined : message,
+      },
+      { status: 500 }
+    )
   }
 }

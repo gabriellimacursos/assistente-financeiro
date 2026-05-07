@@ -1,0 +1,10 @@
+{
+  "name": "Assistente Financeiro",
+  "short_name": "Financeiro",
+  "description": "Controle financeiro pessoal e empresarial por voz",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#F8FAFF",
+  "theme_color": "#6366F1",
+  "orientation": "portrait"
+}

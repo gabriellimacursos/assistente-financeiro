@@ -201,7 +201,8 @@ export async function interpretFinancialInput(
       clarificationOptions: data.clarificationOptions ?? undefined,
       recurrenceSuggestion: data.recurrenceSuggestion ?? false,
     }
-  } catch {
+  } catch (err) {
+    console.warn('[interpretFinancialInput] usando fallback local:', err)
     // Fallback silencioso para o mock local
     await new Promise(r => setTimeout(r, 300))
     return mockInterpret(text, currentMode)
