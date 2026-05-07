@@ -179,13 +179,14 @@ export default function RegistrarPage() {
 
   function handleConfirm() {
     if (!interpretation) return
+    const description = interpretation.description.trim() || pendingText.trim() || interpretation.category
     addTransaction({
       id: Date.now().toString(),
       type: interpretation.type,
       mode: interpretation.mode,
       amount: interpretation.amount,
       category: interpretation.category,
-      description: interpretation.description,
+      description,
       original_text: pendingText,
       date: selectedDate + 'T' + new Date().toTimeString().slice(0, 8),
       is_recurring: recurrenceChoice !== null && recurrenceChoice !== 'none',
@@ -481,6 +482,18 @@ export default function RegistrarPage() {
             </p>
             <p className="text-4xl font-bold">{formatCurrency(interpretation.amount)}</p>
           </div>
+        </div>
+
+        {/* Descrição que vai aparecer na timeline */}
+        <div className="space-y-1">
+          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider px-1">Descrição</p>
+          <textarea
+            value={interpretation.description}
+            onChange={e => setInterpretation({ ...interpretation, description: e.target.value })}
+            rows={2}
+            placeholder="Ex: Gasolina no posto"
+            className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm text-slate-700 outline-none focus:border-primary-400 bg-white resize-none transition-all"
+          />
         </div>
 
         {/* Texto original editável */}
