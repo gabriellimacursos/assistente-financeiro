@@ -53,7 +53,7 @@ function useSystemPin() {
 
 export default function LoginPage() {
   const router = useRouter()
-  const { profiles, setActiveProfileId, addProfile } = useFinanceStore()
+  const { profiles, setActiveProfileId, addProfile, updateProfile } = useFinanceStore()
   const { systemPin, hasSystemPin } = useSystemPin()
 
   // Sistema: desbloqueio
@@ -114,6 +114,18 @@ export default function LoginPage() {
       setPinError(true)
       setPinInput('')
     }
+  }
+
+  function handleResetProfilePin() {
+    if (!selectedProfile) return
+    const confirmed = window.confirm('Remover o PIN deste perfil e entrar agora?')
+    if (!confirmed) return
+    updateProfile(selectedProfile.id, { pin: undefined })
+    setSelectedProfile({ ...selectedProfile, pin: undefined })
+    setPinInput('')
+    setPinError(false)
+    setActiveProfileId(selectedProfile.id)
+    router.push('/registrar')
   }
 
   // ── Criar perfil ─────────────────────────────────────────────────────────
@@ -305,6 +317,12 @@ export default function LoginPage() {
               <button onClick={handlePinSubmit} disabled={pinInput.length !== 4}
                 className="btn-primary w-full flex items-center justify-center gap-2 py-4 disabled:opacity-40">
                 <Check className="w-5 h-5" /> Entrar
+              </button>
+              <button
+                onClick={handleResetProfilePin}
+                className="w-full text-center text-sm font-semibold text-slate-400 hover:text-primary-500"
+              >
+                Esqueci o PIN deste perfil
               </button>
             </div>
           )}

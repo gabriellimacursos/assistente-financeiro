@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronRight, LogOut, Plus, X, Building2, User,
-  TrendingUp, TrendingDown, ArrowUpDown, Trash2,
+  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, KeyRound,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,8 @@ const PROFILE_COLORS = [
   'from-violet-500 to-purple-600',
   'from-cyan-500 to-sky-600',
 ]
+
+const SYSTEM_PIN_KEY = 'app-system-pin'
 
 function getInitials(name: string) {
   return name.trim().split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -40,7 +42,7 @@ export default function ConfiguracoesPage() {
   const router = useRouter()
   const {
     categoriesPersonal, categoriesBusiness, addCategory, removeCategory,
-    profiles, addProfile, removeProfile, activeProfileId,
+    profiles, addProfile, removeProfile, updateProfile, activeProfileId,
   } = useFinanceStore()
   const [catMode, setCatMode] = useState<Mode>('business')
   const [newCat, setNewCat] = useState('')
@@ -53,8 +55,17 @@ export default function ConfiguracoesPage() {
   const [newProfileColor, setNewProfileColor] = useState(PROFILE_COLORS[1])
   const [newProfilePin, setNewProfilePin] = useState('')
   const [removingProfile, setRemovingProfile] = useState<string | null>(null)
+  const [profilePin, setProfilePin] = useState('')
+  const [systemPin, setSystemPin] = useState(
+    typeof window !== 'undefined' ? localStorage.getItem(SYSTEM_PIN_KEY) ?? '' : ''
+  )
+  const [securitySaved, setSecuritySaved] = useState<string | null>(null)
 
   const activeProfile = profiles.find(p => p.id === activeProfileId)
+
+  function normalizePin(value: string) {
+    return value.replace(/\D/g, '').slice(0, 4)
+  }
 
   function handleAddProfile() {
     const name = newProfileName.trim()
@@ -72,6 +83,33 @@ export default function ConfiguracoesPage() {
     setNewProfilePin('')
     setNewProfileColor(PROFILE_COLORS[1])
     setShowAddProfile(false)
+  }
+
+  function handleSaveProfilePin() {
+    if (!activeProfile || profilePin.length !== 4) return
+    updateProfile(activeProfile.id, { pin: profilePin })
+    setProfilePin('')
+    setSecuritySaved('PIN do perfil atualizado')
+  }
+
+  function handleRemoveProfilePin() {
+    if (!activeProfile) return
+    updateProfile(activeProfile.id, { pin: undefined })
+    setProfilePin('')
+    setSecuritySaved('PIN do perfil removido')
+  }
+
+  function handleSaveSystemPin() {
+    if (typeof window === 'undefined' || systemPin.length !== 4) return
+    localStorage.setItem(SYSTEM_PIN_KEY, systemPin)
+    setSecuritySaved('PIN do sistema atualizado')
+  }
+
+  function handleRemoveSystemPin() {
+    if (typeof window === 'undefined') return
+    localStorage.removeItem(SYSTEM_PIN_KEY)
+    setSystemPin('')
+    setSecuritySaved('PIN do sistema removido')
   }
 
   // Garantia de compatibilidade caso o localStorage ainda tenha strings antigas
@@ -325,6 +363,87 @@ export default function ConfiguracoesPage() {
       <div>
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Conta</p>
         <div className="card divide-y divide-slate-100">
+          {activeProfile && (
+            <div className="px-5 py-4 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center shrink-0">
+                  <KeyRound className="w-4 h-4 text-primary-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">PIN do perfil</p>
+                  <p className="text-xs text-slate-400">
+                    {activeProfile.pin ? 'Este perfil pede PIN para entrar' : 'Este perfil esta sem PIN'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={profilePin}
+                  onChange={e => setProfilePin(normalizePin(e.target.value))}
+                  placeholder="Novo PIN de 4 digitos"
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white tracking-widest transition-all"
+                />
+                <button
+                  onClick={handleSaveProfilePin}
+                  disabled={profilePin.length !== 4}
+                  className="px-4 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
+                >
+                  Salvar
+                </button>
+              </div>
+              {activeProfile.pin && (
+                <button
+                  onClick={handleRemoveProfilePin}
+                  className="text-xs font-semibold text-expense-500 hover:text-expense-600"
+                >
+                  Remover PIN deste perfil
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="px-5 py-4 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center shrink-0">
+                <Shield className="w-4 h-4 text-slate-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-slate-800">PIN do sistema</p>
+                <p className="text-xs text-slate-400">Protege a tela inicial antes da escolha de perfil</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={systemPin}
+                onChange={e => setSystemPin(normalizePin(e.target.value))}
+                placeholder="PIN de 4 digitos"
+                className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white tracking-widest transition-all"
+              />
+              <button
+                onClick={handleSaveSystemPin}
+                disabled={systemPin.length !== 4}
+                className="px-4 py-2.5 bg-slate-800 text-white text-sm font-semibold rounded-xl hover:bg-slate-900 disabled:opacity-40 transition-colors"
+              >
+                Salvar
+              </button>
+            </div>
+            {typeof window !== 'undefined' && localStorage.getItem(SYSTEM_PIN_KEY) && (
+              <button
+                onClick={handleRemoveSystemPin}
+                className="text-xs font-semibold text-expense-500 hover:text-expense-600"
+              >
+                Remover PIN do sistema
+              </button>
+            )}
+            {securitySaved && <p className="text-xs font-semibold text-income-600">{securitySaved}</p>}
+          </div>
+
           <button
             onClick={() => router.push('/login')}
             className="w-full flex items-center gap-3 px-5 py-4 hover:bg-expense-50 transition-colors text-left"
