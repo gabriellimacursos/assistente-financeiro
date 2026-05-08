@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import ModeToggle from '@/components/shared/ModeToggle'
 import { formatCurrency, formatDate, formatTime, cn } from '@/lib/utils'
-import { parseISO, format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { parseISO, format, startOfMonth, endOfMonth, subMonths, endOfDay, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { ViewMode, Transaction, Mode } from '@/types'
 
@@ -24,15 +24,15 @@ interface PeriodOption {
 function getPeriodOptions(): PeriodOption[] {
   const now = new Date()
   const options: PeriodOption[] = [
-    { label: 'Hoje',        value: 'today', start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), end: now },
-    { label: 'Esta semana', value: 'week',  start: new Date(now.getTime() - 7 * 86400000), end: now },
-    { label: 'Este mês',    value: 'month', start: startOfMonth(now), end: now },
+    { label: 'Hoje',        value: 'today', start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), end: endOfDay(now) },
+    { label: 'Esta semana', value: 'week',  start: new Date(now.getTime() - 7 * 86400000), end: endOfDay(addDays(now, 7)) },
+    { label: 'Este mês',    value: 'month', start: startOfMonth(now), end: endOfMonth(now) },
   ]
   for (let i = 1; i <= 3; i++) {
     const d = subMonths(now, i)
     options.push({ label: format(d, 'MMMM yyyy', { locale: ptBR }), value: `month-${i}`, start: startOfMonth(d), end: endOfMonth(d) })
   }
-  options.push({ label: 'Tudo', value: 'all', start: new Date(2000, 0, 1), end: now })
+  options.push({ label: 'Tudo', value: 'all', start: new Date(2000, 0, 1), end: new Date(2100, 11, 31, 23, 59, 59) })
   return options
 }
 

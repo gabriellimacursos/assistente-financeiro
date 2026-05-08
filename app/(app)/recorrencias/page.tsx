@@ -6,7 +6,7 @@ import {
   Plus, Mic, X, Check, Building2, User, ChevronRight,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
-import { formatCurrency, formatShortDate, RECURRENCE_LABELS, cn } from '@/lib/utils'
+import { formatCurrency, formatShortDate, formatDateInput, RECURRENCE_LABELS, cn } from '@/lib/utils'
 import type { Recurrence, RecurrenceFrequency, Mode } from '@/types'
 
 type ModalMode = 'create' | 'edit' | null
@@ -31,7 +31,7 @@ function emptyRecurrence(mode: Mode): Omit<Recurrence, 'id' | 'created_at'> {
     amount: 0,
     category: 'Outros',
     frequency: 'monthly',
-    next_date: nextMonth.toISOString().split('T')[0],
+    next_date: formatDateInput(nextMonth),
     active: true,
   }
 }

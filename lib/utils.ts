@@ -29,6 +29,10 @@ export function formatShortDate(dateStr: string): string {
   return format(parseISO(dateStr), 'dd/MM/yyyy')
 }
 
+export function formatDateInput(date = new Date()): string {
+  return format(date, 'yyyy-MM-dd')
+}
+
 export function formatMonth(dateStr: string): string {
   return format(parseISO(dateStr), 'MMM', { locale: ptBR })
 }

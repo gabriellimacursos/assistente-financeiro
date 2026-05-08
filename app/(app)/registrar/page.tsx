@@ -7,7 +7,7 @@ import {
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder'
 import { interpretFinancialInput, getCategoryOptions } from '@/lib/ai/interpreter'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
-import { formatCurrency, formatShortDate, cn } from '@/lib/utils'
+import { formatCurrency, formatShortDate, formatDateInput, cn } from '@/lib/utils'
 import type { AIInterpretation, Transaction, RecurrenceFrequency, Mode } from '@/types'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -38,7 +38,7 @@ export default function RegistrarPage() {
   const [editField, setEditField] = useState<EditField>(null)
   const [editAmount, setEditAmount] = useState('')
   const [clarificationInput, setClarificationInput] = useState('')
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(formatDateInput())
   const [transferDir, setTransferDir] = useState<TransferDir>('biz-to-personal')
   const [transferAmount, setTransferAmount] = useState('')
   const [newCatInput, setNewCatInput] = useState('')
@@ -117,7 +117,7 @@ export default function RegistrarPage() {
     setPendingText(t.description)
     setInterpretation(interp)
     setEditAmount(t.amount.toString())
-    setSelectedDate(new Date().toISOString().split('T')[0])
+    setSelectedDate(formatDateInput())
     setStep('confirming')
   }
 
@@ -205,7 +205,7 @@ export default function RegistrarPage() {
       setRecurrenceChoice(null)
       setEditField(null)
       setTextInput('')
-      setSelectedDate(new Date().toISOString().split('T')[0])
+      setSelectedDate(formatDateInput())
       setSelectedCardId(null)
       inputRef.current?.focus()
     }, 1600)
@@ -253,7 +253,7 @@ export default function RegistrarPage() {
       setStep('idle')
       setTransferAmount('')
       setTextInput('')
-      setSelectedDate(new Date().toISOString().split('T')[0])
+      setSelectedDate(formatDateInput())
       inputRef.current?.focus()
     }, 1600)
   }
@@ -689,7 +689,6 @@ export default function RegistrarPage() {
                       type="date"
                       autoFocus
                       value={selectedDate}
-                      max={new Date().toISOString().split('T')[0]}
                       onChange={e => setSelectedDate(e.target.value)}
                       className="flex-1 bg-transparent text-base font-semibold text-slate-800 outline-none"
                     />
@@ -698,7 +697,7 @@ export default function RegistrarPage() {
                     {[0, 1, 2].map(daysAgo => {
                       const d = new Date()
                       d.setDate(d.getDate() - daysAgo)
-                      const val = d.toISOString().split('T')[0]
+                      const val = formatDateInput(d)
                       const label = daysAgo === 0 ? 'Hoje' : daysAgo === 1 ? 'Ontem' : `${daysAgo} dias atrás`
                       return (
                         <button key={val} onClick={() => { setSelectedDate(val); setEditField(null) }}
