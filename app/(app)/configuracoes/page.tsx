@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronRight, LogOut, Plus, X, Building2, User,
-  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, KeyRound,
+  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { supabase } from '@/lib/supabase/client'
@@ -43,7 +43,7 @@ export default function ConfiguracoesPage() {
   const router = useRouter()
   const {
     categoriesPersonal, categoriesBusiness, addCategory, removeCategory,
-    profiles, addProfile, removeProfile, updateProfile, activeProfileId, clearCloudSession,
+    profiles, addProfile, removeProfile, activeProfileId, clearCloudSession,
   } = useFinanceStore()
   const [catMode, setCatMode] = useState<Mode>('business')
   const [newCat, setNewCat] = useState('')
@@ -54,9 +54,7 @@ export default function ConfiguracoesPage() {
   const [showAddProfile, setShowAddProfile] = useState(false)
   const [newProfileName, setNewProfileName] = useState('')
   const [newProfileColor, setNewProfileColor] = useState(PROFILE_COLORS[1])
-  const [newProfilePin, setNewProfilePin] = useState('')
   const [removingProfile, setRemovingProfile] = useState<string | null>(null)
-  const [profilePin, setProfilePin] = useState('')
   const [systemPin, setSystemPin] = useState(
     typeof window !== 'undefined' ? localStorage.getItem(SYSTEM_PIN_KEY) ?? '' : ''
   )
@@ -76,28 +74,13 @@ export default function ConfiguracoesPage() {
       name,
       initials: getInitials(name),
       color: newProfileColor,
-      pin: newProfilePin.length === 4 ? newProfilePin : undefined,
+      pin: undefined,
       isOwner: false,
       created_at: new Date().toISOString(),
     })
     setNewProfileName('')
-    setNewProfilePin('')
     setNewProfileColor(PROFILE_COLORS[1])
     setShowAddProfile(false)
-  }
-
-  function handleSaveProfilePin() {
-    if (!activeProfile || profilePin.length !== 4) return
-    updateProfile(activeProfile.id, { pin: profilePin })
-    setProfilePin('')
-    setSecuritySaved('PIN do perfil atualizado')
-  }
-
-  function handleRemoveProfilePin() {
-    if (!activeProfile) return
-    updateProfile(activeProfile.id, { pin: undefined })
-    setProfilePin('')
-    setSecuritySaved('PIN do perfil removido')
   }
 
   function handleSaveSystemPin() {
@@ -148,7 +131,6 @@ export default function ConfiguracoesPage() {
             <p className="font-bold text-slate-800">{activeProfile.name}</p>
             <p className="text-xs text-slate-400 mt-0.5">
               {activeProfile.isOwner ? 'Dono do sistema' : 'Membro'}
-              {activeProfile.pin ? ' · PIN configurado' : ''}
             </p>
           </div>
         </div>
@@ -179,7 +161,6 @@ export default function ConfiguracoesPage() {
                 </div>
                 <p className="text-xs text-slate-400">
                   {profile.isOwner ? 'Dono' : 'Membro'}
-                  {profile.pin ? ' · PIN configurado' : ' · Sem PIN'}
                 </p>
               </div>
               {!profile.isOwner && (
@@ -220,11 +201,6 @@ export default function ConfiguracoesPage() {
                 ))}
               </div>
             </div>
-            <input
-              type="password" inputMode="numeric" maxLength={4}
-              value={newProfilePin} onChange={e => setNewProfilePin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="PIN de 4 dígitos (opcional)"
-              className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white tracking-widest transition-all" />
             <div className="flex gap-2">
               <button onClick={handleAddProfile} disabled={!newProfileName.trim()}
                 className="flex-1 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors">
@@ -370,47 +346,6 @@ export default function ConfiguracoesPage() {
       <div>
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Conta</p>
         <div className="card divide-y divide-slate-100">
-          {activeProfile && (
-            <div className="px-5 py-4 space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center shrink-0">
-                  <KeyRound className="w-4 h-4 text-primary-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-800">PIN do perfil</p>
-                  <p className="text-xs text-slate-400">
-                    {activeProfile.pin ? 'Este perfil pede PIN para entrar' : 'Este perfil esta sem PIN'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={profilePin}
-                  onChange={e => setProfilePin(normalizePin(e.target.value))}
-                  placeholder="Novo PIN de 4 digitos"
-                  className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white tracking-widest transition-all"
-                />
-                <button
-                  onClick={handleSaveProfilePin}
-                  disabled={profilePin.length !== 4}
-                  className="px-4 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
-                >
-                  Salvar
-                </button>
-              </div>
-              {activeProfile.pin && (
-                <button
-                  onClick={handleRemoveProfilePin}
-                  className="text-xs font-semibold text-expense-500 hover:text-expense-600"
-                >
-                  Remover PIN deste perfil
-                </button>
-              )}
-            </div>
-          )}
 
           <div className="px-5 py-4 space-y-4">
             <div className="flex items-start gap-3">

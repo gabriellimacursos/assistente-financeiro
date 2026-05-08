@@ -54,7 +54,7 @@ function useSystemPin() {
 
 export default function LoginPage() {
   const router = useRouter()
-  const { profiles, setActiveProfileId, addProfile, updateProfile, initializeCloud, syncStatus, syncError } = useFinanceStore()
+  const { profiles, setActiveProfileId, addProfile, initializeCloud, syncStatus, syncError } = useFinanceStore()
   const { systemPin, hasSystemPin } = useSystemPin()
   const [authReady, setAuthReady] = useState(false)
   const [accountEmail, setAccountEmail] = useState('')
@@ -89,18 +89,12 @@ export default function LoginPage() {
   const [showSysPin, setShowSysPin] = useState(false)
 
   // Perfil selecionado — se não há perfis, vai direto para criação
-  const [step, setStep] = useState<'profiles' | 'pin' | 'add-1' | 'add-2' | 'add-3'>(
+  const [step, setStep] = useState<'profiles' | 'add-1' | 'add-2' | 'add-3'>(
     profiles.length === 0 ? 'add-1' : 'profiles'
   )
-  const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null)
-  const [pinInput, setPinInput] = useState('')
-  const [pinError, setPinError] = useState(false)
-  const [showPin, setShowPin] = useState(false)
-
   // Novo perfil — dados base
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(PROFILE_COLORS[1])
-  const [newPin, setNewPin] = useState('')
   // Onboarding financeiro
   const [profileType, setProfileType] = useState<ProfileType | null>(null)
   const [selectedIncome, setSelectedIncome] = useState<Set<string>>(new Set())
@@ -129,41 +123,11 @@ export default function LoginPage() {
 
   // ── Selecionar perfil ────────────────────────────────────────────────────
   function handleSelectProfile(profile: UserProfile) {
-    if (profile.pin) {
-      setSelectedProfile(profile)
-      setPinInput('')
-      setPinError(false)
-      setStep('pin')
-    } else {
-      setActiveProfileId(profile.id)
-      router.push('/registrar')
-    }
-  }
-
-  function handlePinSubmit() {
-    if (!selectedProfile) return
-    if (pinInput === selectedProfile.pin) {
-      setActiveProfileId(selectedProfile.id)
-      router.push('/registrar')
-    } else {
-      setPinError(true)
-      setPinInput('')
-    }
-  }
-
-  function handleResetProfilePin() {
-    if (!selectedProfile) return
-    const confirmed = window.confirm('Remover o PIN deste perfil e entrar agora?')
-    if (!confirmed) return
-    updateProfile(selectedProfile.id, { pin: undefined })
-    setSelectedProfile({ ...selectedProfile, pin: undefined })
-    setPinInput('')
-    setPinError(false)
-    setActiveProfileId(selectedProfile.id)
+    setActiveProfileId(profile.id)
     router.push('/registrar')
   }
 
-  // ── Criar perfil ─────────────────────────────────────────────────────────
+  // -- Criar perfil ─────────────────────────────────────────────────────────
   function handleCreateProfile() {
     const name = newName.trim()
     if (!name || !profileType) return
@@ -172,7 +136,7 @@ export default function LoginPage() {
       name,
       initials: getInitials(name),
       color: newColor,
-      pin: newPin.length === 4 ? newPin : undefined,
+      pin: undefined,
       isOwner: profiles.filter(p => p.isOwner).length === 0,
       created_at: new Date().toISOString(),
       profileType,
@@ -182,7 +146,7 @@ export default function LoginPage() {
     }
     addProfile(profile)
     // Reset
-    setNewName(''); setNewColor(PROFILE_COLORS[1]); setNewPin('')
+    setNewName(''); setNewColor(PROFILE_COLORS[1])
     setProfileType(null); setSelectedIncome(new Set()); setSelectedExpenses(new Set())
     setPreferredMode('both')
     setStep('profiles')
@@ -425,7 +389,6 @@ export default function LoginPage() {
                         {profile.profileType
                           ? PROFILE_TYPES.find(t => t.value === profile.profileType)?.label
                           : profile.isOwner ? 'Dono do sistema' : 'Membro'}
-                        {profile.pin ? ' · 🔒 PIN' : ''}
                       </p>
                     </div>
                     <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-400 transition-colors" />
@@ -439,45 +402,6 @@ export default function LoginPage() {
                   <span className="font-semibold text-sm">Adicionar perfil</span>
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* ── PIN de perfil ── */}
-          {step === 'pin' && selectedProfile && (
-            <div className="space-y-6">
-              <button onClick={() => setStep('profiles')} className="text-sm text-slate-400 hover:text-slate-600">← Voltar</button>
-              <div className="flex flex-col items-center text-center space-y-3">
-                <div className={cn('w-20 h-20 rounded-3xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-3xl', selectedProfile.color)}>
-                  {selectedProfile.initials}
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-800">{selectedProfile.name}</h2>
-                  <p className="text-slate-500 text-sm">PIN de 4 dígitos</p>
-                </div>
-              </div>
-              <div className="relative">
-                <input autoFocus type={showPin ? 'text' : 'password'} inputMode="numeric" maxLength={4}
-                  value={pinInput}
-                  onChange={e => { setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4)); setPinError(false) }}
-                  onKeyDown={e => e.key === 'Enter' && pinInput.length === 4 && handlePinSubmit()}
-                  placeholder="• • • •"
-                  className={cn('w-full text-center text-3xl font-bold tracking-[0.5em] px-4 py-5 rounded-2xl border-2 outline-none transition-all bg-white',
-                    pinError ? 'border-expense-400 text-expense-500' : 'border-slate-200 focus:border-primary-400 text-slate-800')} />
-                <button onClick={() => setShowPin(!showPin)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                  {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              {pinError && <p className="text-center text-sm text-expense-500 font-medium">PIN incorreto</p>}
-              <button onClick={handlePinSubmit} disabled={pinInput.length !== 4}
-                className="btn-primary w-full flex items-center justify-center gap-2 py-4 disabled:opacity-40">
-                <Check className="w-5 h-5" /> Entrar
-              </button>
-              <button
-                onClick={handleResetProfilePin}
-                className="w-full text-center text-sm font-semibold text-slate-400 hover:text-primary-500"
-              >
-                Esqueci o PIN deste perfil
-              </button>
             </div>
           )}
 
@@ -520,14 +444,6 @@ export default function LoginPage() {
                         newColor === color ? 'ring-2 ring-offset-2 ring-primary-500 scale-110' : 'hover:scale-105')} />
                   ))}
                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">PIN de acesso (opcional)</label>
-                <input type="password" inputMode="numeric" maxLength={4}
-                  value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="4 dígitos — deixe em branco para sem PIN"
-                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm font-medium text-slate-800 outline-none focus:border-primary-400 transition-all bg-white tracking-widest" />
               </div>
 
               <button onClick={() => setStep('add-2')} disabled={!newName.trim()}
