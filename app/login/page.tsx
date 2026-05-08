@@ -59,7 +59,7 @@ export default function LoginPage() {
   const [authReady, setAuthReady] = useState(false)
   const [accountEmail, setAccountEmail] = useState('')
   const [accountPassword, setAccountPassword] = useState('')
-  const [accountMode, setAccountMode] = useState<'login' | 'signup'>('login')
+  const [accountMode, setAccountMode] = useState<'login' | 'signup' | 'forgot'>('login')
   const [accountLoading, setAccountLoading] = useState(false)
   const [accountError, setAccountError] = useState<string | null>(null)
   const [accountNotice, setAccountNotice] = useState<string | null>(null)
@@ -197,20 +197,29 @@ export default function LoginPage() {
 
   async function handleAccountSubmit() {
     const email = accountEmail.trim()
-    if (!email || accountPassword.length < 6) return
+    if (!email || (accountMode !== 'forgot' && accountPassword.length < 6)) return
     setAccountLoading(true)
     setAccountError(null)
     setAccountNotice(null)
     try {
+      if (accountMode === 'forgot') {
+        const redirectTo = `${window.location.origin}/redefinir-senha`
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+        if (error) throw error
+        setAccountNotice('Enviamos um link para redefinir sua senha. Abra seu e-mail e siga as instruções.')
+        return
+      }
+
+      const redirectTo = `${window.location.origin}/auth/callback`
       const result = accountMode === 'login'
         ? await supabase.auth.signInWithPassword({ email, password: accountPassword })
-        : await supabase.auth.signUp({ email, password: accountPassword })
+        : await supabase.auth.signUp({ email, password: accountPassword, options: { emailRedirectTo: redirectTo } })
 
       if (result.error) throw result.error
       if (result.data.session?.user) {
         await initializeCloud(result.data.session.user.id)
       } else if (accountMode === 'signup') {
-        setAccountNotice('Conta criada. Se o Supabase pedir confirmação, abra o link enviado por e-mail antes de entrar.')
+        setAccountNotice('Conta criada. Enviamos um e-mail de confirmação para liberar seu acesso.')
       }
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : 'Falha ao acessar a conta')
@@ -264,6 +273,7 @@ export default function LoginPage() {
               onChange={e => setAccountPassword(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAccountSubmit()}
               placeholder="Senha da conta"
+              disabled={accountMode === 'forgot'}
               className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white"
             />
             {accountError && <p className="text-sm text-expense-500 font-medium">{accountError}</p>}
@@ -271,12 +281,24 @@ export default function LoginPage() {
             {accountNotice && <p className="text-sm text-income-600 font-medium">{accountNotice}</p>}
             <button
               onClick={handleAccountSubmit}
-              disabled={accountLoading || !accountEmail.trim() || accountPassword.length < 6}
+              disabled={accountLoading || !accountEmail.trim() || (accountMode !== 'forgot' && accountPassword.length < 6)}
               className="btn-primary w-full py-4 flex items-center justify-center gap-2 disabled:opacity-40"
             >
-              {accountLoading ? 'Aguarde...' : accountMode === 'login' ? 'Entrar' : 'Criar conta'}
+              {accountLoading ? 'Aguarde...' : accountMode === 'forgot' ? 'Enviar link de redefinição' : accountMode === 'login' ? 'Entrar' : 'Criar conta'}
             </button>
-            <p className="text-xs text-slate-400 text-center">A senha precisa ter pelo menos 6 caracteres.</p>
+            <button
+              onClick={() => {
+                setAccountMode(accountMode === 'forgot' ? 'login' : 'forgot')
+                setAccountError(null)
+                setAccountNotice(null)
+              }}
+              className="w-full text-center text-sm font-semibold text-slate-400 hover:text-primary-500"
+            >
+              {accountMode === 'forgot' ? 'Voltar para entrar' : 'Esqueci minha senha'}
+            </button>
+            <p className="text-xs text-slate-400 text-center">
+              {accountMode === 'forgot' ? 'Use o mesmo e-mail da sua conta.' : 'A senha precisa ter pelo menos 6 caracteres.'}
+            </p>
           </div>
         </div>
       </div>
