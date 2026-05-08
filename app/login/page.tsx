@@ -1,11 +1,12 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   TrendingUp, Plus, Check, X, Eye, EyeOff, ChevronRight,
   Briefcase, User2, Laptop, TrendingDown, Shield,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { UserProfile, ProfileType } from '@/types'
 
@@ -53,8 +54,33 @@ function useSystemPin() {
 
 export default function LoginPage() {
   const router = useRouter()
-  const { profiles, setActiveProfileId, addProfile, updateProfile } = useFinanceStore()
+  const { profiles, setActiveProfileId, addProfile, updateProfile, initializeCloud, syncStatus, syncError } = useFinanceStore()
   const { systemPin, hasSystemPin } = useSystemPin()
+  const [authReady, setAuthReady] = useState(false)
+  const [accountEmail, setAccountEmail] = useState('')
+  const [accountPassword, setAccountPassword] = useState('')
+  const [accountMode, setAccountMode] = useState<'login' | 'signup'>('login')
+  const [accountLoading, setAccountLoading] = useState(false)
+  const [accountError, setAccountError] = useState<string | null>(null)
+  const [accountNotice, setAccountNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!mounted) return
+      if (data.session?.user) {
+        await initializeCloud(data.session.user.id)
+      }
+      setAuthReady(true)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) initializeCloud(session.user.id)
+    })
+    return () => {
+      mounted = false
+      listener.subscription.unsubscribe()
+    }
+  }, [initializeCloud])
 
   // Sistema: desbloqueio
   const [systemUnlocked, setSystemUnlocked] = useState(!hasSystemPin)
@@ -80,6 +106,15 @@ export default function LoginPage() {
   const [selectedIncome, setSelectedIncome] = useState<Set<string>>(new Set())
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set())
   const [preferredMode, setPreferredMode] = useState<'business' | 'personal' | 'both'>('both')
+
+  useEffect(() => {
+    if (syncStatus !== 'ready') return
+    if (profiles.length > 0 && step.startsWith('add-') && !newName.trim()) {
+      setStep('profiles')
+    } else if (profiles.length === 0 && step === 'profiles') {
+      setStep('add-1')
+    }
+  }, [syncStatus, profiles.length, step, newName])
 
   // ── Sistema desbloqueio ──────────────────────────────────────────────────
   function handleSystemUnlock() {
@@ -158,6 +193,103 @@ export default function LoginPage() {
     if (next.has(value)) next.delete(value)
     else next.add(value)
     setFn(next)
+  }
+
+  async function handleAccountSubmit() {
+    const email = accountEmail.trim()
+    if (!email || accountPassword.length < 6) return
+    setAccountLoading(true)
+    setAccountError(null)
+    setAccountNotice(null)
+    try {
+      const result = accountMode === 'login'
+        ? await supabase.auth.signInWithPassword({ email, password: accountPassword })
+        : await supabase.auth.signUp({ email, password: accountPassword })
+
+      if (result.error) throw result.error
+      if (result.data.session?.user) {
+        await initializeCloud(result.data.session.user.id)
+      } else if (accountMode === 'signup') {
+        setAccountNotice('Conta criada. Se o Supabase pedir confirmação, abra o link enviado por e-mail antes de entrar.')
+      }
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : 'Falha ao acessar a conta')
+    } finally {
+      setAccountLoading(false)
+    }
+  }
+
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFF] flex items-center justify-center p-6">
+        <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (syncStatus === 'idle' || syncStatus === 'error') {
+    return (
+      <div className="min-h-screen bg-[#F8FAFF] flex items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-5">
+          <div className="text-center space-y-2">
+            <div className="w-14 h-14 bg-primary-500 rounded-2xl flex items-center justify-center mx-auto">
+              <TrendingUp className="w-7 h-7 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800">Assistente Financeiro</h1>
+            <p className="text-sm text-slate-500">Entre na sua conta para sincronizar seus dados em qualquer dispositivo.</p>
+          </div>
+
+          <div className="card p-5 space-y-3">
+            <div className="grid grid-cols-2 gap-1 bg-slate-100 rounded-xl p-1">
+              <button onClick={() => setAccountMode('login')}
+                className={cn('py-2 rounded-lg text-sm font-semibold transition-all', accountMode === 'login' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500')}>
+                Entrar
+              </button>
+              <button onClick={() => setAccountMode('signup')}
+                className={cn('py-2 rounded-lg text-sm font-semibold transition-all', accountMode === 'signup' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500')}>
+                Criar conta
+              </button>
+            </div>
+
+            <input
+              type="email"
+              value={accountEmail}
+              onChange={e => setAccountEmail(e.target.value)}
+              placeholder="Seu e-mail"
+              className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white"
+            />
+            <input
+              type="password"
+              value={accountPassword}
+              onChange={e => setAccountPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAccountSubmit()}
+              placeholder="Senha da conta"
+              className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white"
+            />
+            {accountError && <p className="text-sm text-expense-500 font-medium">{accountError}</p>}
+            {syncError && <p className="text-sm text-expense-500 font-medium">{syncError}</p>}
+            {accountNotice && <p className="text-sm text-income-600 font-medium">{accountNotice}</p>}
+            <button
+              onClick={handleAccountSubmit}
+              disabled={accountLoading || !accountEmail.trim() || accountPassword.length < 6}
+              className="btn-primary w-full py-4 flex items-center justify-center gap-2 disabled:opacity-40"
+            >
+              {accountLoading ? 'Aguarde...' : accountMode === 'login' ? 'Entrar' : 'Criar conta'}
+            </button>
+            <p className="text-xs text-slate-400 text-center">A senha precisa ter pelo menos 6 caracteres.</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (syncStatus === 'loading') {
+    return (
+      <div className="min-h-screen bg-[#F8FAFF] flex flex-col items-center justify-center gap-3 p-6 text-center">
+        <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin" />
+        <p className="text-sm text-slate-500 font-medium">Carregando seus dados...</p>
+      </div>
+    )
   }
 
   // ── TELA: desbloqueio do sistema ─────────────────────────────────────────

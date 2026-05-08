@@ -6,6 +6,7 @@ import {
   TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, KeyRound,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Mode } from '@/types'
 
@@ -42,7 +43,7 @@ export default function ConfiguracoesPage() {
   const router = useRouter()
   const {
     categoriesPersonal, categoriesBusiness, addCategory, removeCategory,
-    profiles, addProfile, removeProfile, updateProfile, activeProfileId,
+    profiles, addProfile, removeProfile, updateProfile, activeProfileId, clearCloudSession,
   } = useFinanceStore()
   const [catMode, setCatMode] = useState<Mode>('business')
   const [newCat, setNewCat] = useState('')
@@ -110,6 +111,12 @@ export default function ConfiguracoesPage() {
     localStorage.removeItem(SYSTEM_PIN_KEY)
     setSystemPin('')
     setSecuritySaved('PIN do sistema removido')
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    clearCloudSession()
+    router.push('/login')
   }
 
   // Garantia de compatibilidade caso o localStorage ainda tenha strings antigas
@@ -454,6 +461,20 @@ export default function ConfiguracoesPage() {
             <div className="flex-1">
               <p className="text-sm font-semibold text-expense-600">Trocar perfil</p>
               <p className="text-xs text-slate-400">Voltar para a seleção de perfis</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300" />
+          </button>
+
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-3 px-5 py-4 hover:bg-expense-50 transition-colors text-left"
+          >
+            <div className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center shrink-0">
+              <LogOut className="w-4 h-4 text-expense-500" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-expense-600">Sair da conta</p>
+              <p className="text-xs text-slate-400">Encerrar sessao neste dispositivo</p>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-300" />
           </button>
