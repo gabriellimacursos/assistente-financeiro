@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  TrendingUp, Plus, Check, X, Eye, EyeOff, ChevronRight,
+  TrendingUp, Plus, Check, X, Eye, EyeOff, ChevronRight, ChevronLeft,
   Briefcase, User2, Laptop, TrendingDown, Shield, Clock, XCircle,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
@@ -149,7 +149,8 @@ export default function LoginPage() {
   // -- Criar perfil ─────────────────────────────────────────────────────────
   function handleCreateProfile() {
     const name = newName.trim()
-    if (!name || !profileType) return
+    if (!name) return
+    const type = profileType ?? 'other'
     const profile: UserProfile = {
       id: Date.now().toString(),
       name,
@@ -158,7 +159,7 @@ export default function LoginPage() {
       pin: undefined,
       isOwner: profiles.filter(p => p.isOwner).length === 0,
       created_at: new Date().toISOString(),
-      profileType,
+      profileType: type,
       incomeSources: Array.from(selectedIncome),
       typicalExpenses: Array.from(selectedExpenses),
       preferredMode,
@@ -500,40 +501,43 @@ export default function LoginPage() {
           </div>
 
           {/* ── Seleção de perfil ── */}
-          {step === 'profiles' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-1">Quem está usando?</h2>
-                <p className="text-slate-500 text-sm">Selecione seu perfil para continuar</p>
-              </div>
-              <div className="space-y-3">
-                {profiles.map(profile => (
-                  <button key={profile.id} onClick={() => handleSelectProfile(profile)}
-                    className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border-2 border-slate-100 hover:border-primary-300 hover:bg-primary-50 transition-all active:scale-[0.99] group">
-                    <div className={cn('w-12 h-12 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-lg shrink-0', profile.color)}>
-                      {profile.initials}
+          {step === 'profiles' && (() => {
+            const hour = new Date().getHours()
+            const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
+            return (
+              <div className="space-y-6">
+                <div>
+                  <p className="text-slate-400 text-sm font-medium mb-1">{greeting} 👋</p>
+                  <h2 className="text-2xl font-bold text-slate-800">Quem está usando?</h2>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {profiles.map(profile => (
+                    <button key={profile.id} onClick={() => handleSelectProfile(profile)}
+                      className="flex flex-col items-center gap-3 p-5 bg-white rounded-3xl shadow-sm border-2 border-transparent hover:border-primary-200 hover:shadow-md transition-all active:scale-[0.96]">
+                      <div className={cn('w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-2xl', profile.color)}>
+                        {profile.initials}
+                      </div>
+                      <div className="text-center">
+                        <p className="font-bold text-slate-800 text-sm leading-tight">{profile.name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {profile.profileType
+                            ? PROFILE_TYPES.find(t => t.value === profile.profileType)?.label
+                            : profile.isOwner ? 'Principal' : 'Membro'}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                  <button onClick={() => setStep('add-1')}
+                    className="flex flex-col items-center gap-3 p-5 bg-white rounded-3xl shadow-sm border-2 border-dashed border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-all text-slate-400 hover:text-primary-500">
+                    <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+                      <Plus className="w-7 h-7" />
                     </div>
-                    <div className="flex-1 text-left">
-                      <p className="font-bold text-slate-800">{profile.name}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {profile.profileType
-                          ? PROFILE_TYPES.find(t => t.value === profile.profileType)?.label
-                          : profile.isOwner ? 'Dono do sistema' : 'Membro'}
-                      </p>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-400 transition-colors" />
+                    <p className="text-xs font-semibold">Adicionar</p>
                   </button>
-                ))}
-                <button onClick={() => setStep('add-1')}
-                  className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border-2 border-dashed border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-all text-slate-400 hover:text-primary-600">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0">
-                    <Plus className="w-5 h-5" />
-                  </div>
-                  <span className="font-semibold text-sm">Adicionar perfil</span>
-                </button>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* ── Add Step 1: dados básicos ── */}
           {step === 'add-1' && (
@@ -588,7 +592,7 @@ export default function LoginPage() {
             <div className="space-y-5">
               <div className="flex items-center gap-3">
                 <button onClick={() => setStep('add-1')} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200">
-                  <X className="w-4 h-4 text-slate-500" />
+                  <ChevronLeft className="w-5 h-5 text-slate-500" />
                 </button>
                 <div>
                   <h2 className="text-xl font-bold text-slate-800">Perfil financeiro</h2>
@@ -649,6 +653,12 @@ export default function LoginPage() {
                 className="btn-primary w-full flex items-center justify-center gap-2 py-4 disabled:opacity-40">
                 Próximo <ChevronRight className="w-5 h-5" />
               </button>
+              <button
+                onClick={() => { if (!profileType) setProfileType('other'); setStep('add-3') }}
+                className="w-full text-center text-sm text-slate-400 hover:text-slate-600 transition-colors py-1"
+              >
+                Pular esta etapa
+              </button>
             </div>
           )}
 
@@ -657,7 +667,7 @@ export default function LoginPage() {
             <div className="space-y-5">
               <div className="flex items-center gap-3">
                 <button onClick={() => setStep('add-2')} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200">
-                  <X className="w-4 h-4 text-slate-500" />
+                  <ChevronLeft className="w-5 h-5 text-slate-500" />
                 </button>
                 <div>
                   <h2 className="text-xl font-bold text-slate-800">Gastos frequentes</h2>
@@ -692,6 +702,12 @@ export default function LoginPage() {
               <button onClick={handleCreateProfile}
                 className="btn-primary w-full flex items-center justify-center gap-2 py-4">
                 <Check className="w-5 h-5" /> Criar perfil
+              </button>
+              <button
+                onClick={handleCreateProfile}
+                className="w-full text-center text-sm text-slate-400 hover:text-slate-600 transition-colors py-1"
+              >
+                Pular e criar sem categorias
               </button>
             </div>
           )}
