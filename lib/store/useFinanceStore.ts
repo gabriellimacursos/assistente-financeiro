@@ -353,27 +353,6 @@ export const useFinanceStore = create<FinanceStore>()(
             if (res.error) throw res.error
           }
 
-          const hasCloudData =
-            (profilesRes.data?.length ?? 0) > 0 ||
-            (transactionsRes.data?.length ?? 0) > 0 ||
-            (recurrencesRes.data?.length ?? 0) > 0 ||
-            (cardsRes.data?.length ?? 0) > 0 ||
-            (categoriesRes.data?.length ?? 0) > 0
-
-          const localHasData =
-            get().profiles.length > 0 ||
-            get().transactions.length > 0 ||
-            get().recurrences.length > 0 ||
-            get().cards.length > 0 ||
-            customCategories(get().categoriesPersonal, DEFAULT_CATEGORIES_PERSONAL).length > 0 ||
-            customCategories(get().categoriesBusiness, DEFAULT_CATEGORIES_BUSINESS).length > 0
-
-          if (!hasCloudData && localHasData) {
-            await uploadLocalSnapshot(get(), userId)
-            set({ syncStatus: 'idle' })
-            return get().initializeCloud(userId)
-          }
-
           const cloudCategories = categoriesRes.data ?? []
           const personalCats = cloudCategories
             .filter((c: any) => c.mode === 'personal')
