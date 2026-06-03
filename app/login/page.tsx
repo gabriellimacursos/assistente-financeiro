@@ -44,6 +44,24 @@ function getInitials(name: string) {
   return name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
 }
 
+function traduzirErro(msg: string): string {
+  if (msg.includes('already registered') || msg.includes('user_already_exists') || msg.includes('already been registered'))
+    return 'Este e-mail já está cadastrado. Clique em "Entrar" para fazer login.'
+  if (msg.includes('Invalid login credentials') || msg.includes('invalid_credentials'))
+    return 'E-mail ou senha incorretos. Verifique e tente novamente.'
+  if (msg.includes('Email not confirmed'))
+    return 'E-mail ainda não confirmado. Verifique sua caixa de entrada.'
+  if (msg.includes('Password should be at least'))
+    return 'A senha precisa ter pelo menos 6 caracteres.'
+  if (msg.includes('rate limit') || msg.includes('too many requests') || msg.includes('over_email_send_rate_limit'))
+    return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente novamente.'
+  if (msg.includes('Unable to validate email address'))
+    return 'E-mail inválido. Verifique o endereço digitado.'
+  if (msg.includes('Network') || msg.includes('fetch'))
+    return 'Sem conexão. Verifique sua internet e tente novamente.'
+  return msg
+}
+
 // ─── Sistema PIN — protege o app antes de ver os perfis ───────────────────
 const SYSTEM_PIN_KEY = 'app-system-pin'
 
@@ -185,11 +203,25 @@ export default function LoginPage() {
       if (result.data.session?.user) {
         await initializeCloud(result.data.session.user.id)
       } else if (accountMode === 'signup') {
+        // Supabase retorna "sucesso" sem sessão quando o e-mail já está cadastrado (proteção contra enumeração)
+        // Identities vazias indicam conta já existente
+        if (result.data.user && (result.data.user.identities?.length === 0)) {
+          setAccountMode('login')
+          setAccountError('Este e-mail já tem uma conta. Entre com sua senha.')
+          return
+        }
         setAccountNotice('Conta criada! Enviamos um e-mail de confirmação. Confirme e volte para entrar.')
         setAccountDone(true)
       }
     } catch (err) {
-      setAccountError(err instanceof Error ? err.message : 'Falha ao acessar a conta')
+      const msg = err instanceof Error ? err.message : 'Falha ao acessar a conta'
+      // E-mail já cadastrado → troca para login automaticamente
+      if (msg.includes('already registered') || msg.includes('user_already_exists')) {
+        setAccountMode('login')
+        setAccountError('Este e-mail já tem uma conta. Entre com sua senha.')
+      } else {
+        setAccountError(traduzirErro(msg))
+      }
     } finally {
       setAccountLoading(false)
     }
