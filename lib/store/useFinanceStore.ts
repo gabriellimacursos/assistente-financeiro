@@ -58,6 +58,7 @@ interface FinanceStore {
   activeMode: Mode
   isLoading: boolean
   cloudUserId: string | null
+  persistedUserId: string | null
   syncStatus: SyncStatus
   syncError: string | null
   isAdmin: boolean
@@ -304,6 +305,7 @@ export const useFinanceStore = create<FinanceStore>()(
       activeMode: 'business',
       isLoading: false,
       cloudUserId: null,
+      persistedUserId: null,
       syncStatus: 'idle',
       syncError: null,
       isAdmin: false,
@@ -318,6 +320,17 @@ export const useFinanceStore = create<FinanceStore>()(
       initializeCloud: async (userId) => {
         if (get().syncStatus === 'loading') return
         if (get().syncStatus === 'ready' && get().cloudUserId === userId) return
+
+        // Usuário diferente do armazenado → limpa dados locais para não subir dados de outra conta
+        if (get().persistedUserId && get().persistedUserId !== userId) {
+          set({
+            transactions: [], recurrences: [], cards: [], profiles: [],
+            categoriesPersonal: [...DEFAULT_CATEGORIES_PERSONAL],
+            categoriesBusiness: [...DEFAULT_CATEGORIES_BUSINESS],
+            activeProfileId: '', persistedUserId: userId,
+          })
+        }
+
         set({ cloudUserId: userId, syncStatus: 'loading', syncError: null, isLoading: true })
         try {
           const [
@@ -380,6 +393,7 @@ export const useFinanceStore = create<FinanceStore>()(
               ? get().activeProfileId
               : (profilesRes.data?.[0]?.id ?? ''),
             cloudUserId: userId,
+            persistedUserId: userId,
             syncStatus: 'ready',
             isLoading: false,
             isAdmin: registryRes.data?.is_admin ?? false,
@@ -391,7 +405,7 @@ export const useFinanceStore = create<FinanceStore>()(
         }
       },
 
-      clearCloudSession: () => set({ cloudUserId: null, syncStatus: 'idle', syncError: null, isAdmin: false, userStatus: null }),
+      clearCloudSession: () => set({ cloudUserId: null, syncStatus: 'idle', syncError: null, isAdmin: false, userStatus: null, persistedUserId: null }),
 
       addTransaction: (t) =>
         set((state) => {
@@ -522,6 +536,7 @@ export const useFinanceStore = create<FinanceStore>()(
         viewMode: state.viewMode,
         activeMode: state.activeMode,
         sidebarCollapsed: state.sidebarCollapsed,
+        persistedUserId: state.persistedUserId,
       }),
       migrate: (persisted: any) => {
         const migrateCategories = (cats: any[], defaults: CategoryItem[]): CategoryItem[] => {
