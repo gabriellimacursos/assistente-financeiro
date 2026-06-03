@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronRight, LogOut, Plus, X, Building2, User,
-  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield,
+  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { supabase } from '@/lib/supabase/client'
@@ -43,12 +43,14 @@ export default function ConfiguracoesPage() {
   const router = useRouter()
   const {
     categoriesPersonal, categoriesBusiness, addCategory, removeCategory,
-    profiles, addProfile, removeProfile, activeProfileId, clearCloudSession,
+    profiles, addProfile, removeProfile, updateProfile, activeProfileId, clearCloudSession,
   } = useFinanceStore()
   const [catMode, setCatMode] = useState<Mode>('business')
   const [newCat, setNewCat] = useState('')
   const [newDirection, setNewDirection] = useState<Direction>('expense')
   const [removingCat, setRemovingCat] = useState<string | null>(null)
+  const [pinEditId, setPinEditId] = useState<string | null>(null)
+  const [pinEditValue, setPinEditValue] = useState('')
 
   // Profile management
   const [showAddProfile, setShowAddProfile] = useState(false)
@@ -114,6 +116,69 @@ export default function ConfiguracoesPage() {
     setNewCat('')
   }
 
+  const isOwner = activeProfile?.isOwner ?? false
+
+  // ── Acesso limitado para perfis não-donos ───────────────────────────────
+  if (!isOwner) {
+    return (
+      <div className="max-w-2xl mx-auto p-4 lg:p-8 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Configurações</h1>
+        </div>
+        {activeProfile && (
+          <div className="card p-5 flex items-center gap-4">
+            <div className={cn('w-14 h-14 bg-gradient-to-br rounded-2xl flex items-center justify-center text-white font-bold text-xl shrink-0', activeProfile.color)}>
+              {activeProfile.initials}
+            </div>
+            <div>
+              <p className="font-bold text-slate-800">{activeProfile.name}</p>
+              <p className="text-xs text-slate-400 mt-0.5">Membro</p>
+            </div>
+          </div>
+        )}
+        <div className="card p-4 flex items-start gap-3">
+          <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+            <Lock className="w-4 h-4 text-amber-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-700">Acesso limitado</p>
+            <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+              Apenas o perfil principal pode alterar configurações do sistema. Troque para o perfil principal para ter acesso completo.
+            </p>
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Conta</p>
+          <div className="card divide-y divide-slate-100">
+            <button onClick={() => router.push('/login')}
+              className="w-full flex items-center gap-3 px-5 py-4 hover:bg-expense-50 transition-colors text-left">
+              <div className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center shrink-0">
+                <LogOut className="w-4 h-4 text-expense-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-expense-600">Trocar perfil</p>
+                <p className="text-xs text-slate-400">Voltar para a seleção de perfis</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300" />
+            </button>
+            <button onClick={handleSignOut}
+              className="w-full flex items-center gap-3 px-5 py-4 hover:bg-expense-50 transition-colors text-left">
+              <div className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center shrink-0">
+                <LogOut className="w-4 h-4 text-expense-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-expense-600">Sair da conta</p>
+                <p className="text-xs text-slate-400">Encerrar sessão neste dispositivo</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300" />
+            </button>
+          </div>
+        </div>
+        <p className="text-center text-xs text-slate-300 pb-4">Versão 1.0.0</p>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl mx-auto p-4 lg:p-8 space-y-6">
       <div>
@@ -146,39 +211,84 @@ export default function ConfiguracoesPage() {
           </button>
         </div>
 
-        <div className="card divide-y divide-slate-100">
-          {profiles.map(profile => (
-            <div key={profile.id} className="flex items-center gap-3 px-4 py-3.5">
-              <div className={cn('w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm shrink-0', profile.color)}>
-                {profile.initials}
+        <div className="card overflow-hidden">
+          {profiles.map((profile, idx) => (
+            <div key={profile.id} className={idx > 0 ? 'border-t border-slate-100' : ''}>
+              <div className="flex items-center gap-3 px-4 py-3.5">
+                <div className={cn('w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm shrink-0', profile.color)}>
+                  {profile.initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{profile.name}</p>
+                    {profile.id === activeProfileId && (
+                      <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 bg-primary-100 text-primary-600 rounded-full">ATIVO</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    {profile.isOwner ? 'Dono' : 'Membro'}
+                  </p>
+                </div>
+                {/* Botão de PIN */}
+                <button
+                  onClick={() => { setPinEditId(pinEditId === profile.id ? null : profile.id); setPinEditValue('') }}
+                  className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0',
+                    profile.pin ? 'text-slate-600 bg-slate-100 hover:bg-slate-200' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'
+                  )}
+                  title={profile.pin ? 'PIN configurado — clique para editar' : 'Clique para definir um PIN'}
+                >
+                  {profile.pin ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
+                </button>
+                {!profile.isOwner && (
+                  removingProfile === profile.id ? (
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => { removeProfile(profile.id); setRemovingProfile(null) }}
+                        className="w-7 h-7 bg-expense-500 rounded-lg flex items-center justify-center">
+                        <Trash2 className="w-3.5 h-3.5 text-white" />
+                      </button>
+                      <button onClick={() => setRemovingProfile(null)}
+                        className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 text-xs font-bold">✕</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setRemovingProfile(profile.id)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-expense-400 hover:bg-expense-50 transition-colors shrink-0">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-semibold text-slate-800 truncate">{profile.name}</p>
-                  {profile.id === activeProfileId && (
-                    <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 bg-primary-100 text-primary-600 rounded-full">ATIVO</span>
+              {/* Editor de PIN inline */}
+              {pinEditId === profile.id && (
+                <div className="px-4 pb-4 pt-1 bg-slate-50 border-t border-slate-100 space-y-2">
+                  <p className="text-xs text-slate-500 font-medium">PIN para <span className="font-bold text-slate-700">{profile.name}</span> — 4 dígitos</p>
+                  <div className="flex gap-2">
+                    <input
+                      autoFocus
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={pinEditValue}
+                      onChange={e => setPinEditValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="• • • •"
+                      className="flex-1 px-4 py-2.5 rounded-xl border-2 border-slate-200 text-center text-xl font-bold tracking-[0.4em] outline-none focus:border-primary-400 bg-white transition-all"
+                    />
+                    <button
+                      onClick={() => { if (pinEditValue.length === 4) { updateProfile(profile.id, { pin: pinEditValue }); setPinEditId(null); setPinEditValue('') } }}
+                      disabled={pinEditValue.length !== 4}
+                      className="px-4 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                  {profile.pin && (
+                    <button
+                      onClick={() => { updateProfile(profile.id, { pin: undefined }); setPinEditId(null) }}
+                      className="text-xs text-expense-500 font-semibold hover:text-expense-600 transition-colors"
+                    >
+                      Remover PIN deste perfil
+                    </button>
                   )}
                 </div>
-                <p className="text-xs text-slate-400">
-                  {profile.isOwner ? 'Dono' : 'Membro'}
-                </p>
-              </div>
-              {!profile.isOwner && (
-                removingProfile === profile.id ? (
-                  <div className="flex gap-1 shrink-0">
-                    <button onClick={() => { removeProfile(profile.id); setRemovingProfile(null) }}
-                      className="w-7 h-7 bg-expense-500 rounded-lg flex items-center justify-center">
-                      <Trash2 className="w-3.5 h-3.5 text-white" />
-                    </button>
-                    <button onClick={() => setRemovingProfile(null)}
-                      className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 text-xs font-bold">✕</button>
-                  </div>
-                ) : (
-                  <button onClick={() => setRemovingProfile(profile.id)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-expense-400 hover:bg-expense-50 transition-colors shrink-0">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )
               )}
             </div>
           ))}

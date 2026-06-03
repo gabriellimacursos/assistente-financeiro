@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   TrendingUp, Plus, Check, X, Eye, EyeOff, ChevronRight, ChevronLeft,
-  Briefcase, User2, Laptop, TrendingDown, Shield, Clock, XCircle,
+  Briefcase, User2, Laptop, TrendingDown, Shield, Clock, XCircle, Lock,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { supabase } from '@/lib/supabase/client'
@@ -75,6 +75,9 @@ function useSystemPin() {
 export default function LoginPage() {
   const router = useRouter()
   const { profiles, setActiveProfileId, addProfile, initializeCloud, syncStatus, syncError, userStatus, clearCloudSession } = useFinanceStore()
+  const [pinGateProfile, setPinGateProfile] = useState<UserProfile | null>(null)
+  const [pinGateValue, setPinGateValue] = useState('')
+  const [pinGateError, setPinGateError] = useState(false)
   const { systemPin, hasSystemPin } = useSystemPin()
   const [authReady, setAuthReady] = useState(false)
   const [accountEmail, setAccountEmail] = useState('')
@@ -144,8 +147,25 @@ export default function LoginPage() {
 
   // ── Selecionar perfil ────────────────────────────────────────────────────
   function handleSelectProfile(profile: UserProfile) {
+    if (profile.pin) {
+      setPinGateProfile(profile)
+      setPinGateValue('')
+      setPinGateError(false)
+      return
+    }
     setActiveProfileId(profile.id)
     router.push('/registrar')
+  }
+
+  function handlePinGateSubmit() {
+    if (!pinGateProfile) return
+    if (pinGateValue === pinGateProfile.pin) {
+      setActiveProfileId(pinGateProfile.id)
+      router.push('/registrar')
+    } else {
+      setPinGateError(true)
+      setPinGateValue('')
+    }
   }
 
   // -- Criar perfil ─────────────────────────────────────────────────────────
@@ -506,6 +526,52 @@ export default function LoginPage() {
           {step === 'profiles' && (() => {
             const hour = new Date().getHours()
             const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
+
+            // ── PIN gate ──
+            if (pinGateProfile) {
+              return (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => { setPinGateProfile(null); setPinGateValue(''); setPinGateError(false) }}
+                      className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200">
+                      <ChevronLeft className="w-5 h-5 text-slate-500" />
+                    </button>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-800">Perfil protegido</h2>
+                      <p className="text-xs text-slate-400">Digite o PIN para continuar</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-center">
+                    <div className={cn('w-20 h-20 rounded-3xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-2xl', pinGateProfile.color)}>
+                      {pinGateProfile.initials}
+                    </div>
+                  </div>
+                  <p className="text-center font-semibold text-slate-700">{pinGateProfile.name}</p>
+                  <div className="relative">
+                    <input
+                      autoFocus
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={pinGateValue}
+                      onChange={e => { setPinGateValue(e.target.value.replace(/\D/g, '').slice(0, 4)); setPinGateError(false) }}
+                      onKeyDown={e => e.key === 'Enter' && pinGateValue.length === 4 && handlePinGateSubmit()}
+                      placeholder="• • • •"
+                      className={cn(
+                        'w-full text-center text-3xl font-bold tracking-[0.5em] px-4 py-5 rounded-2xl border-2 outline-none transition-all bg-white',
+                        pinGateError ? 'border-expense-400 text-expense-500' : 'border-slate-200 focus:border-primary-400 text-slate-800'
+                      )}
+                    />
+                  </div>
+                  {pinGateError && <p className="text-sm text-expense-500 font-medium text-center">PIN incorreto. Tente novamente.</p>}
+                  <button onClick={handlePinGateSubmit} disabled={pinGateValue.length !== 4}
+                    className="btn-primary w-full py-4 flex items-center justify-center gap-2 disabled:opacity-40">
+                    <Check className="w-5 h-5" /> Entrar
+                  </button>
+                </div>
+              )
+            }
+
             return (
               <div className="space-y-6">
                 <div>
@@ -516,8 +582,15 @@ export default function LoginPage() {
                   {profiles.map(profile => (
                     <button key={profile.id} onClick={() => handleSelectProfile(profile)}
                       className="flex flex-col items-center gap-3 p-5 bg-white rounded-3xl shadow-sm border-2 border-transparent hover:border-primary-200 hover:shadow-md transition-all active:scale-[0.96]">
-                      <div className={cn('w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-2xl', profile.color)}>
-                        {profile.initials}
+                      <div className="relative">
+                        <div className={cn('w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-2xl', profile.color)}>
+                          {profile.initials}
+                        </div>
+                        {profile.pin && (
+                          <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-slate-700 rounded-full flex items-center justify-center">
+                            <Lock className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        )}
                       </div>
                       <div className="text-center">
                         <p className="font-bold text-slate-800 text-sm leading-tight">{profile.name}</p>
