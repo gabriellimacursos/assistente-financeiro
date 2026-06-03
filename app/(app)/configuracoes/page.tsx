@@ -364,7 +364,7 @@ export default function ConfiguracoesPage() {
                 maxLength={4}
                 value={systemPin}
                 onChange={e => setSystemPin(normalizePin(e.target.value))}
-                placeholder="PIN de 4 digitos"
+                placeholder="PIN de 4 dígitos"
                 className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white tracking-widest transition-all"
               />
               <button
@@ -409,7 +409,7 @@ export default function ConfiguracoesPage() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-expense-600">Sair da conta</p>
-              <p className="text-xs text-slate-400">Encerrar sessao neste dispositivo</p>
+              <p className="text-xs text-slate-400">Encerrar sessão neste dispositivo</p>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-300" />
           </button>

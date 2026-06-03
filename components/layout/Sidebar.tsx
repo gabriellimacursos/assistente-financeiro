@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { supabase } from '@/lib/supabase/client'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -20,10 +21,16 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { sidebarCollapsed: collapsed, setSidebarCollapsed, isAdmin } = useFinanceStore()
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed, isAdmin, clearCloudSession } = useFinanceStore()
 
   function toggleCollapsed() {
     setSidebarCollapsed(!collapsed)
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    clearCloudSession()
+    router.push('/login')
   }
 
   return (
@@ -100,7 +107,7 @@ export default function Sidebar() {
           </Link>
         )}
         <button
-          onClick={() => router.push('/login')}
+          onClick={handleSignOut}
           title={collapsed ? 'Sair' : undefined}
           className={cn(
             'flex items-center rounded-xl transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-700 group relative',

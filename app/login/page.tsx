@@ -384,6 +384,30 @@ export default function LoginPage() {
     )
   }
 
+  // ── TELA: conta sem registro (ex: deletada pelo admin) ──────────────────
+  if (syncStatus === 'ready' && userStatus === null) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFF] flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center space-y-5">
+          <div className="w-16 h-16 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto">
+            <Shield className="w-8 h-8 text-slate-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Acesso não encontrado</h2>
+            <p className="text-slate-500 text-sm mt-2 leading-relaxed">
+              Sua conta não foi encontrada no sistema.<br />
+              Entre em contato com o administrador.
+            </p>
+          </div>
+          <button onClick={async () => { await supabase.auth.signOut(); clearCloudSession() }}
+            className="w-full py-3 bg-slate-100 text-slate-600 rounded-2xl text-sm font-semibold hover:bg-slate-200 transition-colors">
+            Sair
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // ── TELA: desbloqueio do sistema ─────────────────────────────────────────
   if (!systemUnlocked) {
     return (
