@@ -211,7 +211,7 @@ export default function LoginPage() {
           setAccountError('Este e-mail já tem uma conta. Entre com sua senha.')
           return
         }
-        setAccountNotice('Conta criada! Aguarde a aprovação do administrador para acessar o sistema.')
+        setAccountNotice('Conta criada! Enviamos um e-mail de confirmação. Confirme e volte para entrar.')
         setAccountDone(true)
       }
     } catch (err) {
