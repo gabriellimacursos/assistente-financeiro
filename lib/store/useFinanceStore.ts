@@ -61,6 +61,8 @@ interface FinanceStore {
   syncStatus: SyncStatus
   syncError: string | null
 
+  sidebarCollapsed: boolean
+  setSidebarCollapsed: (collapsed: boolean) => void
   setViewMode: (mode: ViewMode) => void
   setActiveMode: (mode: Mode) => void
   setActiveProfileId: (id: string) => void
@@ -73,6 +75,7 @@ interface FinanceStore {
   updateProfile: (id: string, data: Partial<UserProfile>) => void
   removeProfile: (id: string) => void
   addRecurrence: (r: Recurrence) => void
+  updateRecurrence: (id: string, data: Partial<Recurrence>) => void
   toggleRecurrence: (id: string) => void
   removeRecurrence: (id: string) => void
   addCategory: (name: string, mode: Mode, direction: 'income' | 'expense' | 'both') => void
@@ -301,13 +304,16 @@ export const useFinanceStore = create<FinanceStore>()(
       cloudUserId: null,
       syncStatus: 'idle',
       syncError: null,
+      sidebarCollapsed: false,
 
+      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       setViewMode: (viewMode) => set({ viewMode }),
       setActiveMode: (activeMode) => set({ activeMode }),
       setActiveProfileId: (activeProfileId) => set({ activeProfileId }),
 
       initializeCloud: async (userId) => {
         if (get().syncStatus === 'loading') return
+        if (get().syncStatus === 'ready' && get().cloudUserId === userId) return
         set({ cloudUserId: userId, syncStatus: 'loading', syncError: null, isLoading: true })
         try {
           const [
@@ -345,6 +351,7 @@ export const useFinanceStore = create<FinanceStore>()(
 
           if (!hasCloudData && localHasData) {
             await uploadLocalSnapshot(get(), userId)
+            set({ syncStatus: 'idle' })
             return get().initializeCloud(userId)
           }
 
@@ -406,6 +413,14 @@ export const useFinanceStore = create<FinanceStore>()(
           const item = { ...r, id: ensureUuid(r.id), user_id: userId ?? r.user_id }
           if (userId) supabase.from('recurrences').upsert(recurrenceToDb(item, userId)).then(({ error }) => error && console.error(error))
           return { recurrences: [item, ...state.recurrences] }
+        }),
+
+      updateRecurrence: (id, data) =>
+        set((state) => {
+          const next = state.recurrences.map((r) => r.id === id ? { ...r, ...data } : r)
+          const item = next.find(r => r.id === id)
+          if (state.cloudUserId && item) supabase.from('recurrences').upsert(recurrenceToDb(item, state.cloudUserId)).then(({ error }) => error && console.error(error))
+          return { recurrences: next }
         }),
 
       toggleRecurrence: (id) =>
@@ -498,6 +513,7 @@ export const useFinanceStore = create<FinanceStore>()(
         categoriesBusiness: state.categoriesBusiness,
         viewMode: state.viewMode,
         activeMode: state.activeMode,
+        sidebarCollapsed: state.sidebarCollapsed,
       }),
       migrate: (persisted: any) => {
         const migrateCategories = (cats: any[], defaults: CategoryItem[]): CategoryItem[] => {

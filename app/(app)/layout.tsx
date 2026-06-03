@@ -8,22 +8,8 @@ import { useFinanceStore } from '@/lib/store/useFinanceStore'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const [collapsed, setCollapsed] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
-  const { initializeCloud, syncStatus } = useFinanceStore()
-
-  useEffect(() => {
-    const saved = localStorage.getItem('sidebar-collapsed')
-    setCollapsed(saved === 'true')
-
-    // Listen for storage changes (sidebar toggle)
-    const handler = () => setCollapsed(localStorage.getItem('sidebar-collapsed') === 'true')
-    window.addEventListener('storage', handler)
-
-    // Also poll since same-tab storage doesn't fire storage event
-    const interval = setInterval(handler, 200)
-    return () => { window.removeEventListener('storage', handler); clearInterval(interval) }
-  }, [])
+  const { initializeCloud, syncStatus, sidebarCollapsed } = useFinanceStore()
 
   useEffect(() => {
     let mounted = true
@@ -38,7 +24,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     })
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) router.replace('/login')
-      else initializeCloud(session.user.id)
     })
     return () => {
       mounted = false
@@ -58,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#F8FAFF]">
       <Sidebar />
-      <main className={`transition-all duration-300 pb-20 lg:pb-0 min-h-screen ${collapsed ? 'lg:pl-16' : 'lg:pl-64'}`}>
+      <main className={`transition-all duration-300 pb-20 lg:pb-0 min-h-screen ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'}`}>
         {children}
       </main>
       <BottomNav />

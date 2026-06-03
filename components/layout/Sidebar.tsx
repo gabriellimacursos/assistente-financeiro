@@ -7,7 +7,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
-import { useState, useEffect } from 'react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -21,19 +20,10 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { } = useFinanceStore()
-  const [collapsed, setCollapsed] = useState(false)
-
-  // Persist collapsed state
-  useEffect(() => {
-    const saved = localStorage.getItem('sidebar-collapsed')
-    if (saved === 'true') setCollapsed(true)
-  }, [])
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed } = useFinanceStore()
 
   function toggleCollapsed() {
-    const next = !collapsed
-    setCollapsed(next)
-    localStorage.setItem('sidebar-collapsed', String(next))
+    setSidebarCollapsed(!collapsed)
   }
 
   return (

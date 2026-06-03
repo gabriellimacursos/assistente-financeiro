@@ -38,7 +38,7 @@ function emptyRecurrence(mode: Mode): Omit<Recurrence, 'id' | 'created_at'> {
 
 export default function RecorrenciasPage() {
   const router = useRouter()
-  const { recurrences, toggleRecurrence, removeRecurrence, addRecurrence, activeMode, categoriesPersonal, categoriesBusiness } = useFinanceStore()
+  const { recurrences, toggleRecurrence, removeRecurrence, addRecurrence, updateRecurrence, activeMode, categoriesPersonal, categoriesBusiness } = useFinanceStore()
   // Categorias filtradas por modo e tipo do formulário atual
   const getFormCategories = (mode: Mode, type: 'income' | 'expense') => {
     const raw = mode === 'business' ? categoriesBusiness : categoriesPersonal
@@ -82,12 +82,7 @@ export default function RecorrenciasPage() {
     const data = { ...form, amount }
 
     if (modalMode === 'edit' && editing) {
-      // Update: remove old + add new with same id
-      useFinanceStore.setState(state => ({
-        recurrences: state.recurrences.map(r =>
-          r.id === editing.id ? { ...r, ...data } : r
-        ),
-      }))
+      updateRecurrence(editing.id, data)
     } else {
       addRecurrence({
         ...data,
