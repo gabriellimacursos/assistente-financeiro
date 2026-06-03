@@ -259,33 +259,31 @@ export default function ConfiguracoesPage() {
               </div>
               {/* Editor de PIN inline */}
               {pinEditId === profile.id && (
-                <div className="px-4 pb-4 pt-1 bg-slate-50 border-t border-slate-100 space-y-2">
-                  <p className="text-xs text-slate-500 font-medium">PIN para <span className="font-bold text-slate-700">{profile.name}</span> — 4 dígitos</p>
-                  <div className="flex gap-2">
-                    <input
-                      autoFocus
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={4}
-                      value={pinEditValue}
-                      onChange={e => setPinEditValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                      placeholder="• • • •"
-                      className="flex-1 px-4 py-2.5 rounded-xl border-2 border-slate-200 text-center text-xl font-bold tracking-[0.4em] outline-none focus:border-primary-400 bg-white transition-all"
-                    />
-                    <button
-                      onClick={() => { if (pinEditValue.length === 4) { updateProfile(profile.id, { pin: pinEditValue }); setPinEditId(null); setPinEditValue('') } }}
-                      disabled={pinEditValue.length !== 4}
-                      className="px-4 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
-                    >
-                      Salvar
-                    </button>
-                  </div>
+                <div className="px-4 pb-4 pt-3 bg-slate-50 border-t border-slate-100 space-y-2">
+                  <p className="text-xs text-slate-500 font-medium">PIN de 4 dígitos para <span className="font-bold text-slate-700">{profile.name}</span></p>
+                  <input
+                    autoFocus
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={pinEditValue}
+                    onChange={e => setPinEditValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="• • • •"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 text-center text-2xl font-bold tracking-[0.5em] outline-none focus:border-primary-400 bg-white transition-all"
+                  />
+                  <button
+                    onClick={() => { if (pinEditValue.length === 4) { updateProfile(profile.id, { pin: pinEditValue }); setPinEditId(null); setPinEditValue('') } }}
+                    disabled={pinEditValue.length !== 4}
+                    className="w-full py-3 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
+                  >
+                    Salvar PIN
+                  </button>
                   {profile.pin && (
                     <button
                       onClick={() => { updateProfile(profile.id, { pin: undefined }); setPinEditId(null) }}
-                      className="text-xs text-expense-500 font-semibold hover:text-expense-600 transition-colors"
+                      className="w-full text-center text-xs text-expense-500 font-semibold hover:text-expense-600 transition-colors py-1"
                     >
-                      Remover PIN deste perfil
+                      Remover PIN
                     </button>
                   )}
                 </div>
