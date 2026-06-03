@@ -152,7 +152,7 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
           {/* Categoria */}
           <div>
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Categoria</label>
-            <div className="grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-44 overflow-y-auto">
               {cats.map(cat => (
                 <button key={cat} onClick={() => setCategory(cat)}
                   className={cn('py-2.5 px-2 rounded-xl text-xs font-semibold border-2 transition-all text-center',
@@ -343,18 +343,18 @@ export default function TimelinePage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="card p-3">
-          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Entradas</p>
-          <p className="text-base font-bold text-income-500">{formatCurrency(totalIncome)}</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        <div className="card p-2.5">
+          <p className="text-[9px] text-slate-400 font-semibold mb-0.5">Entradas</p>
+          <p className="text-xs sm:text-sm font-bold text-income-500 truncate">{formatCurrency(totalIncome)}</p>
         </div>
-        <div className="card p-3">
-          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Saídas</p>
-          <p className="text-base font-bold text-expense-500">{formatCurrency(totalExpense)}</p>
+        <div className="card p-2.5">
+          <p className="text-[9px] text-slate-400 font-semibold mb-0.5">Saídas</p>
+          <p className="text-xs sm:text-sm font-bold text-expense-500 truncate">{formatCurrency(totalExpense)}</p>
         </div>
-        <div className="card p-3">
-          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Saldo</p>
-          <p className={cn('text-base font-bold', balance >= 0 ? 'text-income-500' : 'text-expense-500')}>
+        <div className="card p-2.5">
+          <p className="text-[9px] text-slate-400 font-semibold mb-0.5">Saldo</p>
+          <p className={cn('text-xs sm:text-sm font-bold truncate', balance >= 0 ? 'text-income-500' : 'text-expense-500')}>
             {formatCurrency(balance)}
           </p>
         </div>

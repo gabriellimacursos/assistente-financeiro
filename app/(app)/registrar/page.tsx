@@ -480,7 +480,7 @@ export default function RegistrarPage() {
             <p className="text-white/70 text-xs font-medium mb-1">
               {interpretation.type === 'income' ? '↑ Entrada' : '↓ Saída'} · toque para editar o valor
             </p>
-            <p className="text-4xl font-bold">{formatCurrency(interpretation.amount)}</p>
+            <p className="text-3xl sm:text-4xl font-bold">{formatCurrency(interpretation.amount)}</p>
             {pendingText && (
               <p className="text-white/75 text-sm mt-3 leading-snug break-words">
                 {pendingText}
@@ -587,7 +587,7 @@ export default function RegistrarPage() {
               {editField === 'category' && (
                 <>
                   <h3 className="font-bold text-slate-800 text-center text-lg">Isso foi relacionado a quê?</h3>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {categories.map(cat => (
                       <button key={cat} onClick={() => applyEdit('category', cat)}
                         className={cn('py-3 px-2 rounded-2xl text-xs font-semibold border-2 transition-all text-center',

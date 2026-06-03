@@ -5,6 +5,7 @@ import { LayoutDashboard, Mic, Clock, CreditCard, MoreHorizontal } from 'lucide-
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useFinanceStore } from '@/lib/store/useFinanceStore'
 
 const PRIMARY_NAV = [
   { href: '/dashboard', label: 'Início', icon: LayoutDashboard },
@@ -14,15 +15,17 @@ const PRIMARY_NAV = [
   { href: '/_more', label: 'Mais', icon: MoreHorizontal, isMore: true },
 ]
 
-const MORE_ITEMS = [
-  { href: '/recorrencias', label: '🔄 Recorrências' },
-  { href: '/configuracoes', label: '⚙️ Configurações' },
-]
-
 export default function BottomNav() {
   const pathname = usePathname()
   const router = useRouter()
   const [showMore, setShowMore] = useState(false)
+  const { isAdmin } = useFinanceStore()
+
+  const moreItems = [
+    { href: '/recorrencias', label: '🔄 Recorrências' },
+    { href: '/configuracoes', label: '⚙️ Configurações' },
+    ...(isAdmin ? [{ href: '/admin', label: '🛡️ Admin' }] : []),
+  ]
 
   return (
     <>
@@ -30,7 +33,7 @@ export default function BottomNav() {
       {showMore && (
         <div className="lg:hidden fixed inset-0 z-40" onClick={() => setShowMore(false)}>
           <div className="absolute bottom-16 right-2 bg-white rounded-2xl shadow-card-lg border border-slate-100 overflow-hidden min-w-[160px]" onClick={e => e.stopPropagation()}>
-            {MORE_ITEMS.map(item => (
+            {moreItems.map(item => (
               <button key={item.href} onClick={() => { router.push(item.href); setShowMore(false) }}
                 className={cn('w-full px-5 py-3.5 text-left text-sm font-semibold transition-colors',
                   pathname === item.href ? 'bg-primary-50 text-primary-700' : 'text-slate-700 hover:bg-slate-50')}>
