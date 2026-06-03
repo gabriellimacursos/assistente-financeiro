@@ -53,10 +53,14 @@ function traduzirErro(msg: string): string {
     return 'E-mail ainda não confirmado. Verifique sua caixa de entrada.'
   if (msg.includes('Password should be at least'))
     return 'A senha precisa ter pelo menos 6 caracteres.'
-  if (msg.includes('rate limit') || msg.includes('too many requests') || msg.includes('over_email_send_rate_limit'))
-    return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente novamente.'
+  if (msg.includes('rate limit') || msg.includes('too many requests') || msg.includes('over_email_send_rate_limit') || msg.includes('email rate limit'))
+    return 'Limite de envio de e-mails atingido no servidor. Aguarde alguns minutos (ou até 1 hora) e tente novamente — não é um erro seu.'
+  if (msg.includes('security purposes') || msg.includes('only request this after'))
+    return 'Aguarde alguns segundos antes de tentar criar a conta novamente.'
   if (msg.includes('sending confirmation') || msg.includes('Error sending') || msg.includes('email_send'))
     return 'Não foi possível enviar o e-mail de confirmação. Tente novamente em alguns minutos.'
+  if (msg.includes('signup_disabled') || msg.includes('Signups not allowed'))
+    return 'Novos cadastros estão temporariamente desativados. Tente mais tarde.'
   if (msg.includes('Unable to validate email address'))
     return 'E-mail inválido. Verifique o endereço digitado.'
   if (msg.includes('Network') || msg.includes('fetch'))

@@ -114,3 +114,19 @@
 .delay-100 { animation-delay: 0.1s; opacity: 0; }
 .delay-200 { animation-delay: 0.2s; opacity: 0; }
 .delay-300 { animation-delay: 0.3s; opacity: 0; }
+
+/* Prevent iOS Safari auto-zoom on input/textarea focus.
+   iOS zooms when font-size < 16px and the zoom persists on page navigation,
+   causing the dashboard and other screens to appear "expanded".
+   Exclude inputs that already have explicit large sizes (text-lg and up). */
+@supports (-webkit-touch-callout: none) {
+  input:not([class*="text-lg"]):not([class*="text-xl"]):not([class*="text-2xl"]):not([class*="text-3xl"]):not([class*="text-4xl"]),
+  textarea:not([class*="text-xl"]):not([class*="text-2xl"]):not([class*="text-3xl"]) {
+    font-size: 16px !important;
+  }
+}
+
+/* Prevent double-tap zoom on buttons and links on mobile */
+button, a {
+  touch-action: manipulation;
+}
