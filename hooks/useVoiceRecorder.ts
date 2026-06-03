@@ -145,11 +145,21 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
   }, [isSupported, createSession])
 
   const stopListening = useCallback(() => {
-    shouldRestartRef.current = false   // impede reinício
+    shouldRestartRef.current = false
+
+    const currentText = transcriptRef.current
+
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
+      try { recognitionRef.current.abort() } catch {}  // abort é instantâneo vs stop que aguarda onend
+      recognitionRef.current = null
     }
-    // onend vai chamar setState('processing') se houver texto
+
+    // Transição imediata — não espera onend (que no mobile pode demorar 1-2s)
+    if (currentText) {
+      setState('processing')
+    } else {
+      setState('idle')
+    }
   }, [])
 
   const reset = useCallback(() => {

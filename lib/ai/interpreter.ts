@@ -160,6 +160,9 @@ export async function interpretFinancialInput(
   profile?: Pick<UserProfile, 'profileType' | 'incomeSources' | 'typicalExpenses' | 'preferredMode'>
 ): Promise<AIInterpretation> {
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 7000)
+
     const res = await fetch('/api/interpret', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -174,7 +177,9 @@ export async function interpretFinancialInput(
             }
           : undefined,
       }),
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
 
     if (!res.ok) throw new Error(`API ${res.status}`)
     const data = await res.json()
