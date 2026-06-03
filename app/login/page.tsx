@@ -63,6 +63,7 @@ export default function LoginPage() {
   const [accountLoading, setAccountLoading] = useState(false)
   const [accountError, setAccountError] = useState<string | null>(null)
   const [accountNotice, setAccountNotice] = useState<string | null>(null)
+  const [accountDone, setAccountDone] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -171,6 +172,7 @@ export default function LoginPage() {
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
         if (error) throw error
         setAccountNotice('Enviamos um link para redefinir sua senha. Abra seu e-mail e siga as instruções.')
+        setAccountDone(true)
         return
       }
 
@@ -183,7 +185,8 @@ export default function LoginPage() {
       if (result.data.session?.user) {
         await initializeCloud(result.data.session.user.id)
       } else if (accountMode === 'signup') {
-        setAccountNotice('Conta criada. Enviamos um e-mail de confirmação para liberar seu acesso.')
+        setAccountNotice('Conta criada! Enviamos um e-mail de confirmação. Confirme e volte para entrar.')
+        setAccountDone(true)
       }
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : 'Falha ao acessar a conta')
@@ -196,6 +199,30 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen bg-[#F8FAFF] flex items-center justify-center p-6">
         <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if ((syncStatus === 'idle' || syncStatus === 'error') && accountDone) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFF] flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center space-y-5">
+          <div className="w-16 h-16 bg-income-100 rounded-3xl flex items-center justify-center mx-auto">
+            <Check className="w-8 h-8 text-income-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">
+              {accountMode === 'forgot' ? 'E-mail enviado!' : 'Cadastro realizado!'}
+            </h2>
+            <p className="text-slate-500 text-sm mt-2 leading-relaxed">{accountNotice}</p>
+          </div>
+          <button
+            onClick={() => { setAccountDone(false); setAccountMode('login'); setAccountNotice(null); setAccountEmail(''); setAccountPassword('') }}
+            className="w-full py-3 bg-slate-100 text-slate-700 rounded-2xl text-sm font-semibold hover:bg-slate-200 transition-colors"
+          >
+            Voltar para o login
+          </button>
+        </div>
       </div>
     )
   }
