@@ -47,7 +47,7 @@ export default function BottomNav() {
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-100">
         <div className="flex items-center justify-around h-16 px-1">
           {PRIMARY_NAV.map(({ href, label, icon: Icon, highlight, isMore }) => {
-            const active = pathname === href || (isMore && MORE_ITEMS.some(i => i.href === pathname))
+            const active = pathname === href || (isMore && moreItems.some(i => i.href === pathname))
 
             if (highlight) {
               return (
