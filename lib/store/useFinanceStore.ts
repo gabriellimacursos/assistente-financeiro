@@ -60,6 +60,8 @@ interface FinanceStore {
   cloudUserId: string | null
   syncStatus: SyncStatus
   syncError: string | null
+  isAdmin: boolean
+  userStatus: 'pending' | 'active' | 'suspended' | null
 
   sidebarCollapsed: boolean
   setSidebarCollapsed: (collapsed: boolean) => void
@@ -304,6 +306,8 @@ export const useFinanceStore = create<FinanceStore>()(
       cloudUserId: null,
       syncStatus: 'idle',
       syncError: null,
+      isAdmin: false,
+      userStatus: null,
       sidebarCollapsed: false,
 
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
@@ -322,12 +326,14 @@ export const useFinanceStore = create<FinanceStore>()(
             recurrencesRes,
             cardsRes,
             categoriesRes,
+            registryRes,
           ] = await Promise.all([
             supabase.from('profiles').select('*').order('created_at', { ascending: true }),
             supabase.from('transactions').select('*').order('date', { ascending: false }),
             supabase.from('recurrences').select('*').order('created_at', { ascending: false }),
             supabase.from('credit_cards').select('*').order('created_at', { ascending: false }),
             supabase.from('categories').select('*').order('created_at', { ascending: true }),
+            supabase.from('user_registry').select('status, is_admin').eq('user_id', userId).single(),
           ])
 
           for (const res of [profilesRes, transactionsRes, recurrencesRes, cardsRes, categoriesRes]) {
@@ -376,6 +382,8 @@ export const useFinanceStore = create<FinanceStore>()(
             cloudUserId: userId,
             syncStatus: 'ready',
             isLoading: false,
+            isAdmin: registryRes.data?.is_admin ?? false,
+            userStatus: (registryRes.data?.status ?? null) as 'pending' | 'active' | 'suspended' | null,
           })
         } catch (err) {
           console.error('[finance-store] sync error', err)
@@ -383,7 +391,7 @@ export const useFinanceStore = create<FinanceStore>()(
         }
       },
 
-      clearCloudSession: () => set({ cloudUserId: null, syncStatus: 'idle', syncError: null }),
+      clearCloudSession: () => set({ cloudUserId: null, syncStatus: 'idle', syncError: null, isAdmin: false, userStatus: null }),
 
       addTransaction: (t) =>
         set((state) => {

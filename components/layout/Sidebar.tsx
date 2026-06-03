@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   TrendingUp, LayoutDashboard, Mic, Clock, RefreshCw,
-  Settings, LogOut, ChevronLeft, ChevronRight, CreditCard,
+  Settings, LogOut, ChevronLeft, ChevronRight, CreditCard, Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
@@ -20,7 +20,7 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { sidebarCollapsed: collapsed, setSidebarCollapsed } = useFinanceStore()
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed, isAdmin } = useFinanceStore()
 
   function toggleCollapsed() {
     setSidebarCollapsed(!collapsed)
@@ -85,6 +85,20 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className={cn('border-t border-slate-100 p-2 space-y-1')}>
+        {isAdmin && (
+          <Link href="/admin" title={collapsed ? 'Admin' : undefined}
+            className={cn(
+              'flex items-center rounded-xl transition-all text-slate-500 hover:bg-primary-50 hover:text-primary-600 group relative',
+              pathname === '/admin' ? 'bg-primary-50 text-primary-600' : '',
+              collapsed ? 'justify-center h-11 w-11 mx-auto' : 'gap-3 px-3 py-2.5 w-full'
+            )}>
+            <Shield className="w-5 h-5 shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Admin</span>}
+            {collapsed && (
+              <div className="absolute left-full ml-3 px-2 py-1 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Admin</div>
+            )}
+          </Link>
+        )}
         <button
           onClick={() => router.push('/login')}
           title={collapsed ? 'Sair' : undefined}

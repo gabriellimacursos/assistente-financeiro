@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   TrendingUp, Plus, Check, X, Eye, EyeOff, ChevronRight,
-  Briefcase, User2, Laptop, TrendingDown, Shield,
+  Briefcase, User2, Laptop, TrendingDown, Shield, Clock, XCircle,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { supabase } from '@/lib/supabase/client'
@@ -54,7 +54,7 @@ function useSystemPin() {
 
 export default function LoginPage() {
   const router = useRouter()
-  const { profiles, setActiveProfileId, addProfile, initializeCloud, syncStatus, syncError } = useFinanceStore()
+  const { profiles, setActiveProfileId, addProfile, initializeCloud, syncStatus, syncError, userStatus, clearCloudSession } = useFinanceStore()
   const { systemPin, hasSystemPin } = useSystemPin()
   const [authReady, setAuthReady] = useState(false)
   const [accountEmail, setAccountEmail] = useState('')
@@ -274,6 +274,53 @@ export default function LoginPage() {
       <div className="min-h-screen bg-[#F8FAFF] flex flex-col items-center justify-center gap-3 p-6 text-center">
         <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin" />
         <p className="text-sm text-slate-500 font-medium">Carregando seus dados...</p>
+      </div>
+    )
+  }
+
+  // ── TELA: aguardando aprovação ───────────────────────────────────────────
+  if (syncStatus === 'ready' && userStatus === 'pending') {
+    return (
+      <div className="min-h-screen bg-[#F8FAFF] flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center space-y-5">
+          <div className="w-16 h-16 bg-amber-100 rounded-3xl flex items-center justify-center mx-auto">
+            <Clock className="w-8 h-8 text-amber-500" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Cadastro recebido!</h2>
+            <p className="text-slate-500 text-sm mt-2 leading-relaxed">
+              Seu acesso está aguardando aprovação do administrador.<br />
+              Você será liberado em breve.
+            </p>
+          </div>
+          <button onClick={async () => { await supabase.auth.signOut(); clearCloudSession() }}
+            className="w-full py-3 bg-slate-100 text-slate-600 rounded-2xl text-sm font-semibold hover:bg-slate-200 transition-colors">
+            Sair e aguardar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── TELA: conta suspensa ─────────────────────────────────────────────────
+  if (syncStatus === 'ready' && userStatus === 'suspended') {
+    return (
+      <div className="min-h-screen bg-[#F8FAFF] flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center space-y-5">
+          <div className="w-16 h-16 bg-expense-100 rounded-3xl flex items-center justify-center mx-auto">
+            <XCircle className="w-8 h-8 text-expense-500" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Acesso suspenso</h2>
+            <p className="text-slate-500 text-sm mt-2">
+              Sua conta foi suspensa. Entre em contato com o administrador.
+            </p>
+          </div>
+          <button onClick={async () => { await supabase.auth.signOut(); clearCloudSession() }}
+            className="w-full py-3 bg-slate-100 text-slate-600 rounded-2xl text-sm font-semibold hover:bg-slate-200 transition-colors">
+            Sair
+          </button>
+        </div>
       </div>
     )
   }
