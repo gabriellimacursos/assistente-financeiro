@@ -234,7 +234,7 @@ export default function ConfiguracoesPage() {
             <button
               onClick={() => setCatMode('personal')}
               className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                catMode === 'personal' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+                catMode === 'personal' ? 'bg-primary-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700')}
             >
               <User className="w-3 h-3" /> Pessoal
             </button>

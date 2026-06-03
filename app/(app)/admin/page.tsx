@@ -377,15 +377,6 @@ function UserRow({ user: u, processingId, onApprove, onSuspend, onReset, onDelet
               label="Suspender"
             />
           )}
-          {u.status === 'suspended' && (
-            <ActionBtn
-              onClick={onSuspend}
-              disabled={true}
-              color="slate"
-              icon={<XCircle className="w-3.5 h-3.5" />}
-              label="Suspenso"
-            />
-          )}
           <ActionBtn
             onClick={onReset}
             disabled={isProcessing}

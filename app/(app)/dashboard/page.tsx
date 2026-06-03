@@ -10,7 +10,7 @@ import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import ModeToggle from '@/components/shared/ModeToggle'
 import { formatCurrency, getPercentageChange, getHealthStatus, cn } from '@/lib/utils'
 import type { ViewMode } from '@/types'
-import { format, parseISO, subMonths, isSameMonth } from 'date-fns'
+import { format, parseISO, subMonths, isSameMonth, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 const CATEGORY_COLORS = ['#6366F1', '#10B981', '#F43F5E', '#F59E0B', '#06B6D4', '#8B5CF6', '#EC4899']
@@ -54,17 +54,24 @@ export default function DashboardPage() {
       .map(([name, amount]) => ({ name, amount }))
   }, [thisMonth])
 
-  // Monthly trend (last 5 months)
+  // Monthly trend (last 6 months, sorted chronologically)
   const monthlyData = useMemo(() => {
-    const map: Record<string, { income: number; expense: number }> = {}
-    filtered.forEach(t => {
-      const key = format(parseISO(t.date), 'MMM', { locale: ptBR })
-      if (!map[key]) map[key] = { income: 0, expense: 0 }
-      if (t.type === 'income') map[key].income += t.amount
-      else map[key].expense += t.amount
-    })
-    return Object.entries(map).map(([month, vals]) => ({ month, ...vals }))
-  }, [filtered])
+    const map: Record<string, { income: number; expense: number; sortKey: number }> = {}
+    const sixMonthsAgo = subMonths(now, 5)
+    filtered
+      .filter(t => parseISO(t.date) >= startOfMonth(sixMonthsAgo))
+      .forEach(t => {
+        const d = parseISO(t.date)
+        const key = format(d, 'MMM', { locale: ptBR })
+        const sortKey = d.getFullYear() * 100 + d.getMonth()
+        if (!map[key]) map[key] = { income: 0, expense: 0, sortKey }
+        if (t.type === 'income') map[key].income += t.amount
+        else map[key].expense += t.amount
+      })
+    return Object.entries(map)
+      .sort((a, b) => a[1].sortKey - b[1].sortKey)
+      .map(([month, vals]) => ({ month, income: vals.income, expense: vals.expense }))
+  }, [filtered, now])
 
   // Top income sources
   const incomeSources = useMemo(() => {
@@ -215,29 +222,39 @@ export default function DashboardPage() {
             Ver todos
           </button>
         </div>
-        <div className="space-y-3">
-          {thisMonth.slice(0, 5).map((t) => (
-            <div key={t.id} className="flex items-center gap-3">
-              <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                t.type === 'income' ? 'bg-income-50' : 'bg-expense-50'
-              )}>
-                {t.type === 'income'
-                  ? <TrendingUp className="w-4 h-4 text-income-500" />
-                  : <TrendingDown className="w-4 h-4 text-expense-500" />
-                }
+        {thisMonth.length === 0 ? (
+          <div className="text-center py-8">
+            <Mic className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+            <p className="text-sm text-slate-400">Nenhum registro este mês ainda.</p>
+            <button onClick={() => router.push('/registrar')} className="mt-3 text-sm text-primary-500 font-semibold hover:underline">
+              Registrar agora
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {thisMonth.slice(0, 5).map((t) => (
+              <div key={t.id} className="flex items-center gap-3">
+                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                  t.type === 'income' ? 'bg-income-50' : 'bg-expense-50'
+                )}>
+                  {t.type === 'income'
+                    ? <TrendingUp className="w-4 h-4 text-income-500" />
+                    : <TrendingDown className="w-4 h-4 text-expense-500" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">{t.description}</p>
+                  <p className="text-xs text-slate-400">{t.category}</p>
+                </div>
+                <span className={cn('text-sm font-semibold shrink-0',
+                  t.type === 'income' ? 'text-income-500' : 'text-expense-500'
+                )}>
+                  {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800 truncate">{t.description}</p>
-                <p className="text-xs text-slate-400">{t.category}</p>
-              </div>
-              <span className={cn('text-sm font-semibold shrink-0',
-                t.type === 'income' ? 'text-income-500' : 'text-expense-500'
-              )}>
-                {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* FAB for mobile voice */}

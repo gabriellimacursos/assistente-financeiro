@@ -25,7 +25,7 @@ function getPeriodOptions(): PeriodOption[] {
   const now = new Date()
   const options: PeriodOption[] = [
     { label: 'Hoje',        value: 'today', start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), end: endOfDay(now) },
-    { label: 'Esta semana', value: 'week',  start: new Date(now.getTime() - 7 * 86400000), end: endOfDay(addDays(now, 7)) },
+    { label: 'Últimos 7 dias', value: 'week',  start: new Date(now.getTime() - 7 * 86400000), end: endOfDay(now) },
     { label: 'Este mês',    value: 'month', start: startOfMonth(now), end: endOfMonth(now) },
   ]
   for (let i = 1; i <= 3; i++) {

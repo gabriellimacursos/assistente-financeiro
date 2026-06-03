@@ -55,6 +55,8 @@ function traduzirErro(msg: string): string {
     return 'A senha precisa ter pelo menos 6 caracteres.'
   if (msg.includes('rate limit') || msg.includes('too many requests') || msg.includes('over_email_send_rate_limit'))
     return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente novamente.'
+  if (msg.includes('sending confirmation') || msg.includes('Error sending') || msg.includes('email_send'))
+    return 'Não foi possível enviar o e-mail de confirmação. Tente novamente em alguns minutos.'
   if (msg.includes('Unable to validate email address'))
     return 'E-mail inválido. Verifique o endereço digitado.'
   if (msg.includes('Network') || msg.includes('fetch'))
