@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase/client'
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/registrar', label: 'Registrar', icon: Mic, highlight: true },
-  { href: '/timeline', label: 'Timeline', icon: Clock },
+  { href: '/timeline', label: 'Histórico', icon: Clock },
   { href: '/cartoes', label: 'Cartões', icon: CreditCard },
   { href: '/recorrencias', label: 'Recorrências', icon: RefreshCw },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },

@@ -9,7 +9,7 @@ import { useFinanceStore } from '@/lib/store/useFinanceStore'
 
 const PRIMARY_NAV = [
   { href: '/dashboard', label: 'Início', icon: LayoutDashboard },
-  { href: '/timeline', label: 'Timeline', icon: Clock },
+  { href: '/timeline', label: 'Histórico', icon: Clock },
   { href: '/registrar', label: 'Registrar', icon: Mic, highlight: true },
   { href: '/cartoes', label: 'Cartões', icon: CreditCard },
   { href: '/_more', label: 'Mais', icon: MoreHorizontal, isMore: true },
