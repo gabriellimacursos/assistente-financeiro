@@ -1,6 +1,5 @@
 'use client'
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase/client'
 import type { Transaction, Recurrence, ViewMode, Mode, CreditCard, CategoryItem, UserProfile } from '@/types'
 
@@ -58,7 +57,6 @@ interface FinanceStore {
   activeMode: Mode
   isLoading: boolean
   cloudUserId: string | null
-  persistedUserId: string | null
   syncStatus: SyncStatus
   syncError: string | null
   isAdmin: boolean
@@ -292,25 +290,23 @@ async function uploadLocalSnapshot(state: FinanceStore, userId: string) {
 }
 
 export const useFinanceStore = create<FinanceStore>()(
-  persist(
-    (set, get) => ({
-      transactions: [],
-      recurrences: [],
-      cards: [],
-      profiles: [],
-      activeProfileId: '',
-      categoriesPersonal: [...DEFAULT_CATEGORIES_PERSONAL],
-      categoriesBusiness: [...DEFAULT_CATEGORIES_BUSINESS],
-      viewMode: 'all',
-      activeMode: 'business',
-      isLoading: false,
-      cloudUserId: null,
-      persistedUserId: null,
-      syncStatus: 'idle',
-      syncError: null,
-      isAdmin: false,
-      userStatus: null,
-      sidebarCollapsed: false,
+  (set, get) => ({
+    transactions: [],
+    recurrences: [],
+    cards: [],
+    profiles: [],
+    activeProfileId: '',
+    categoriesPersonal: [...DEFAULT_CATEGORIES_PERSONAL],
+    categoriesBusiness: [...DEFAULT_CATEGORIES_BUSINESS],
+    viewMode: 'all',
+    activeMode: 'business',
+    isLoading: false,
+    cloudUserId: null,
+    syncStatus: 'idle',
+    syncError: null,
+    isAdmin: false,
+    userStatus: null,
+    sidebarCollapsed: false,
 
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       setViewMode: (viewMode) => set({ viewMode }),
@@ -320,16 +316,6 @@ export const useFinanceStore = create<FinanceStore>()(
       initializeCloud: async (userId) => {
         if (get().syncStatus === 'loading') return
         if (get().syncStatus === 'ready' && get().cloudUserId === userId) return
-
-        // Usuário diferente do armazenado → limpa dados locais para não subir dados de outra conta
-        if (get().persistedUserId && get().persistedUserId !== userId) {
-          set({
-            transactions: [], recurrences: [], cards: [], profiles: [],
-            categoriesPersonal: [...DEFAULT_CATEGORIES_PERSONAL],
-            categoriesBusiness: [...DEFAULT_CATEGORIES_BUSINESS],
-            activeProfileId: '', persistedUserId: userId,
-          })
-        }
 
         set({ cloudUserId: userId, syncStatus: 'loading', syncError: null, isLoading: true })
         try {
@@ -372,7 +358,6 @@ export const useFinanceStore = create<FinanceStore>()(
               ? get().activeProfileId
               : (profilesRes.data?.[0]?.id ?? ''),
             cloudUserId: userId,
-            persistedUserId: userId,
             syncStatus: 'ready',
             isLoading: false,
             isAdmin: registryRes.data?.is_admin ?? false,
@@ -384,7 +369,7 @@ export const useFinanceStore = create<FinanceStore>()(
         }
       },
 
-      clearCloudSession: () => set({ cloudUserId: null, syncStatus: 'idle', syncError: null, isAdmin: false, userStatus: null, persistedUserId: null }),
+      clearCloudSession: () => set({ cloudUserId: null, syncStatus: 'idle', syncError: null, isAdmin: false, userStatus: null }),
 
       addTransaction: (t) =>
         set((state) => {
@@ -500,39 +485,5 @@ export const useFinanceStore = create<FinanceStore>()(
         if (s.cloudUserId) supabase.from('credit_cards').delete().eq('id', id).then(({ error }) => error && console.error(error))
         return { cards: s.cards.filter(c => c.id !== id) }
       }),
-    }),
-    {
-      name: 'finance-store',
-      version: 4,
-      partialize: (state) => ({
-        transactions: state.transactions,
-        recurrences: state.recurrences,
-        cards: state.cards,
-        profiles: state.profiles,
-        activeProfileId: state.activeProfileId,
-        categoriesPersonal: state.categoriesPersonal,
-        categoriesBusiness: state.categoriesBusiness,
-        viewMode: state.viewMode,
-        activeMode: state.activeMode,
-        sidebarCollapsed: state.sidebarCollapsed,
-        persistedUserId: state.persistedUserId,
-      }),
-      migrate: (persisted: any) => {
-        const migrateCategories = (cats: any[], defaults: CategoryItem[]): CategoryItem[] => {
-          if (!Array.isArray(cats) || cats.length === 0) return [...defaults]
-          return mergeCategories(defaults, cats.map(c => typeof c === 'string' ? { name: c, direction: 'both' as const } : c))
-        }
-        return {
-          ...persisted,
-          categoriesPersonal: migrateCategories(persisted?.categoriesPersonal ?? [], DEFAULT_CATEGORIES_PERSONAL),
-          categoriesBusiness: migrateCategories(persisted?.categoriesBusiness ?? [], DEFAULT_CATEGORIES_BUSINESS),
-          profiles: persisted?.profiles ?? [],
-          transactions: persisted?.transactions ?? [],
-          recurrences: persisted?.recurrences ?? [],
-          cards: persisted?.cards ?? [],
-          activeProfileId: persisted?.activeProfileId ?? '',
-        }
-      },
-    }
-  )
+    })
 )
