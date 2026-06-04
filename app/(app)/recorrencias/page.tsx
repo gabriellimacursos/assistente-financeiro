@@ -362,7 +362,7 @@ function RecurrenceCard({ recurrence: r, onEdit, onToggle, onDelete, confirmDele
           <button onClick={onCancelDelete} className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 text-xs font-bold">✕</button>
         </div>
       ) : (
-        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-1 shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
           <button onClick={onEdit}
             className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-primary-50 transition-colors text-slate-400 hover:text-primary-500 text-xs font-bold">
             ✎

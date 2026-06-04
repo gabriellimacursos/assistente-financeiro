@@ -198,7 +198,7 @@ export default function AdminPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
           { label: 'Total',      value: users.length,                          color: 'text-slate-700' },
           { label: 'Aguardando', value: users.filter(u=>u.status==='pending').length,   color: 'text-amber-600' },

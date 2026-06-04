@@ -333,7 +333,7 @@ export default function TimelinePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Timeline</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Histórico</h1>
           <p className="text-slate-500 text-sm">
             {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
             {activeFilterCount > 0 && <span className="ml-1.5 text-primary-500 font-semibold">· {activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''} ativo{activeFilterCount > 1 ? 's' : ''}</span>}
@@ -344,16 +344,16 @@ export default function TimelinePage() {
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-1.5">
-        <div className="card p-2.5">
-          <p className="text-[9px] text-slate-400 font-semibold mb-0.5">Entradas</p>
+        <div className="card p-3">
+          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Entradas</p>
           <p className="text-xs sm:text-sm font-bold text-income-500 truncate">{formatCurrency(totalIncome)}</p>
         </div>
-        <div className="card p-2.5">
-          <p className="text-[9px] text-slate-400 font-semibold mb-0.5">Saídas</p>
+        <div className="card p-3">
+          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Saídas</p>
           <p className="text-xs sm:text-sm font-bold text-expense-500 truncate">{formatCurrency(totalExpense)}</p>
         </div>
-        <div className="card p-2.5">
-          <p className="text-[9px] text-slate-400 font-semibold mb-0.5">Saldo</p>
+        <div className="card p-3">
+          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Saldo</p>
           <p className={cn('text-xs sm:text-sm font-bold truncate', balance >= 0 ? 'text-income-500' : 'text-expense-500')}>
             {formatCurrency(balance)}
           </p>
@@ -553,7 +553,7 @@ export default function TimelinePage() {
                       <span className={cn('font-bold text-sm', t.type === 'income' ? 'text-income-500' : 'text-expense-500')}>
                         {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                       </span>
-                      <Pencil className="w-3.5 h-3.5 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <Pencil className="w-3.5 h-3.5 text-slate-300 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity" />
                     </div>
                   </button>
                 ))}

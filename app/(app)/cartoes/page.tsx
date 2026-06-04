@@ -289,7 +289,7 @@ export default function CartoesPage() {
                 </button>
 
                 {/* Action buttons */}
-                <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <div className="absolute top-3 right-3 flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10">
                   <button onClick={e => { e.stopPropagation(); openEdit(card) }}
                     className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors">
                     <Edit2 className="w-3.5 h-3.5 text-white" />
