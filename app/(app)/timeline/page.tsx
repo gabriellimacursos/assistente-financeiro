@@ -300,8 +300,9 @@ export default function TimelinePage() {
     return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]))
   }, [filtered])
 
-  const totalIncome  = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const totalExpense = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const totalIncome  = filtered.filter(t => t.type === 'income' && t.status !== 'pending').reduce((s, t) => s + t.amount, 0)
+  const totalExpense = filtered.filter(t => t.type === 'expense' && t.status !== 'pending').reduce((s, t) => s + t.amount, 0)
+  const totalPending = filtered.filter(t => t.type === 'expense' && t.status === 'pending').reduce((s, t) => s + t.amount, 0)
   const balance      = totalIncome - totalExpense
 
   const activePeriodLabel = selectedPeriod === 'custom'
@@ -349,7 +350,7 @@ export default function TimelinePage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className={cn('grid gap-1.5', totalPending > 0 ? 'grid-cols-2' : 'grid-cols-3')}>
         <div className="card p-3">
           <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Entradas</p>
           <p className="text-xs sm:text-sm font-bold text-income-500 truncate">{formatCurrency(totalIncome)}</p>
@@ -358,13 +359,28 @@ export default function TimelinePage() {
           <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Saídas</p>
           <p className="text-xs sm:text-sm font-bold text-expense-500 truncate">{formatCurrency(totalExpense)}</p>
         </div>
-        <div className="card p-3">
-          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Saldo</p>
-          <p className={cn('text-xs sm:text-sm font-bold truncate', balance >= 0 ? 'text-income-500' : 'text-expense-500')}>
+        {totalPending > 0 ? (
+          <div className="card p-3 border-2 border-amber-200 bg-amber-50">
+            <p className="text-[10px] text-amber-500 font-semibold mb-0.5">A pagar</p>
+            <p className="text-xs sm:text-sm font-bold text-amber-600 truncate">{formatCurrency(totalPending)}</p>
+          </div>
+        ) : (
+          <div className="card p-3">
+            <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Saldo</p>
+            <p className={cn('text-xs sm:text-sm font-bold truncate', balance >= 0 ? 'text-income-500' : 'text-expense-500')}>
+              {formatCurrency(balance)}
+            </p>
+          </div>
+        )}
+      </div>
+      {totalPending > 0 && (
+        <div className="card p-3 flex items-center justify-between">
+          <p className="text-[10px] text-slate-400 font-semibold">Saldo (sem pendentes)</p>
+          <p className={cn('text-xs sm:text-sm font-bold', balance >= 0 ? 'text-income-500' : 'text-expense-500')}>
             {formatCurrency(balance)}
           </p>
         </div>
-      </div>
+      )}
 
       {/* Filtros */}
       <div className="card p-4 space-y-3">
@@ -552,10 +568,11 @@ export default function TimelinePage() {
                           </>
                         )}
                         {t.is_recurring && <span className="text-xs text-primary-400">· 🔁</span>}
+                        {t.status === 'pending' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600">A pagar</span>}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className={cn('flex items-center gap-2 shrink-0', t.status === 'pending' && 'opacity-50')}>
                       <span className={cn('font-bold text-sm', t.type === 'income' ? 'text-income-500' : 'text-expense-500')}>
                         {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                       </span>
