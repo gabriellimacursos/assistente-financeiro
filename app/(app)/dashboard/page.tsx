@@ -238,7 +238,7 @@ export default function DashboardPage() {
 
   function handleMarkAsPaid(txIds: string[], cardId: string) {
     for (const id of txIds) updateTransaction(id, { status: 'confirmed' })
-    setPaidAlerts(prev => new Set([...prev, cardId]))
+    setPaidAlerts(prev => { const s = new Set(prev); s.add(cardId); return s })
     setConfirmPayCard(null)
   }
 
