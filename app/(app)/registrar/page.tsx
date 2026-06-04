@@ -14,7 +14,20 @@ import { ptBR } from 'date-fns/locale'
 
 type Step = 'idle' | 'listening' | 'processing' | 'clarifying' | 'confirming' | 'recurrence' | 'saved' | 'transfer'
 type TransferDir = 'biz-to-personal' | 'personal-to-biz'
-type EditField = 'type' | 'category' | 'amount' | 'mode' | 'date' | 'card' | null
+type EditField = 'type' | 'category' | 'amount' | 'mode' | 'date' | 'card' | 'installments' | null
+
+function cardNextDueDate(card: { closingDay?: number; dueDay?: number }, monthOffset = 0): string {
+  if (!card.dueDay) return ''
+  const today = new Date()
+  let month = today.getMonth()
+  let year = today.getFullYear()
+  const cutoff = card.closingDay ?? card.dueDay
+  if (today.getDate() >= cutoff) month += 1
+  month += monthOffset
+  while (month > 11) { month -= 12; year++ }
+  const d = new Date(year, month, card.dueDay)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 
 const RECURRENCE_OPTIONS: { label: string; value: RecurrenceFrequency | 'none' }[] = [
@@ -44,7 +57,17 @@ export default function RegistrarPage() {
   const [newCatInput, setNewCatInput] = useState('')
   const [newCatDirection, setNewCatDirection] = useState<'income' | 'expense' | 'both'>('both')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [installmentCount, setInstallmentCount] = useState(1)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Auto-set date to card due date when card is selected
+  useEffect(() => {
+    if (!selectedCardId) { setInstallmentCount(1); return }
+    const card = cards.find(c => c.id === selectedCardId)
+    if (!card?.dueDay) return
+    const due = cardNextDueDate(card)
+    if (due) setSelectedDate(due)
+  }, [selectedCardId, cards])
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Sugestões inteligentes baseadas no histórico
@@ -182,23 +205,47 @@ export default function RegistrarPage() {
     if (!interpretation) return
     setSaveError(null)
     const description = interpretation.description.trim() || pendingText.trim() || interpretation.category
+    const card = selectedCardId ? cards.find(c => c.id === selectedCardId) : null
     try {
-      await addTransaction({
-        id: Date.now().toString(),
-        type: interpretation.type,
-        mode: interpretation.mode,
-        amount: interpretation.amount,
-        category: interpretation.category,
-        description,
-        original_text: pendingText,
-        date: selectedDate + 'T' + new Date().toTimeString().slice(0, 8),
-        is_recurring: recurrenceChoice !== null && recurrenceChoice !== 'none',
-        card_id: selectedCardId || undefined,
-        profile_id: activeProfileId,
-        profile_name: activeProfile?.name,
-        status: 'confirmed',
-        created_at: new Date().toISOString(),
-      })
+      if (installmentCount > 1 && card?.dueDay) {
+        const perAmount = Math.round((interpretation.amount / installmentCount) * 100) / 100
+        for (let i = 0; i < installmentCount; i++) {
+          const dueDate = cardNextDueDate(card, i)
+          await addTransaction({
+            id: `${Date.now()}_p${i}_${Math.random().toString(36).slice(2)}`,
+            type: interpretation.type,
+            mode: interpretation.mode,
+            amount: perAmount,
+            category: interpretation.category,
+            description: `${description} (${i + 1}/${installmentCount})`,
+            original_text: pendingText,
+            date: dueDate + 'T00:00:00',
+            is_recurring: false,
+            card_id: selectedCardId || undefined,
+            profile_id: activeProfileId,
+            profile_name: activeProfile?.name,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+          })
+        }
+      } else {
+        await addTransaction({
+          id: Date.now().toString(),
+          type: interpretation.type,
+          mode: interpretation.mode,
+          amount: interpretation.amount,
+          category: interpretation.category,
+          description,
+          original_text: pendingText,
+          date: selectedDate + 'T' + new Date().toTimeString().slice(0, 8),
+          is_recurring: recurrenceChoice !== null && recurrenceChoice !== 'none',
+          card_id: selectedCardId || undefined,
+          profile_id: activeProfileId,
+          profile_name: activeProfile?.name,
+          status: selectedCardId ? 'pending' : 'confirmed',
+          created_at: new Date().toISOString(),
+        })
+      }
       setStep('saved')
       setTimeout(() => {
         voice.reset()
@@ -210,6 +257,7 @@ export default function RegistrarPage() {
         setTextInput('')
         setSelectedDate(formatDateInput())
         setSelectedCardId(null)
+        setInstallmentCount(1)
         inputRef.current?.focus()
       }, 1600)
     } catch {
@@ -527,6 +575,15 @@ export default function RegistrarPage() {
               />
             </div>
           )}
+          {selectedCardId && (
+            <div className="col-span-2">
+              <EditButton
+                label="Parcelas"
+                value={installmentCount === 1 ? 'À vista (1x)' : `${installmentCount}x de ${formatCurrency(interpretation.amount / installmentCount)}`}
+                onClick={() => setEditField('installments')}
+              />
+            </div>
+          )}
         </div>
 
         {recurrenceChoice && recurrenceChoice !== 'none' && (
@@ -544,7 +601,8 @@ export default function RegistrarPage() {
             </div>
           )}
           <button onClick={handleConfirm} className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4">
-            <Check className="w-5 h-5" /> Confirmar
+            <Check className="w-5 h-5" />
+            {installmentCount > 1 ? `Confirmar ${installmentCount}x` : 'Confirmar'}
           </button>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => setStep('recurrence')} className="btn-secondary flex items-center justify-center gap-1.5 text-sm">
@@ -745,6 +803,34 @@ export default function RegistrarPage() {
                       </button>
                     ))}
                   </div>
+                </>
+              )}
+
+              {editField === 'installments' && (
+                <>
+                  <h3 className="font-bold text-slate-800 text-center text-lg">Em quantas parcelas?</h3>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[1, 2, 3, 4, 6, 8, 10, 12, 18, 24].map(n => (
+                      <button key={n} onClick={() => { setInstallmentCount(n); setEditField(null) }}
+                        className={cn('py-3 rounded-2xl text-sm font-semibold border-2 transition-all',
+                          installmentCount === n ? 'bg-primary-50 border-primary-400 text-primary-700' : 'border-slate-200 text-slate-600 hover:border-primary-300')}>
+                        {n === 1 ? '1x' : `${n}x`}
+                      </button>
+                    ))}
+                  </div>
+                  {installmentCount > 1 && (
+                    <div className="bg-slate-50 rounded-2xl p-4 space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Valor por parcela</span>
+                        <span className="font-bold text-slate-800">{formatCurrency(interpretation.amount / installmentCount)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Total</span>
+                        <span className="font-semibold text-slate-600">{formatCurrency(interpretation.amount)}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 pt-1">Cada parcela será lançada no vencimento do cartão</p>
+                    </div>
+                  )}
                 </>
               )}
 

@@ -71,7 +71,7 @@ function txInPeriod(txDate: Date, type: PeriodType, anchor: Date): boolean {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { transactions, viewMode, setViewMode } = useFinanceStore()
+  const { transactions, viewMode, setViewMode, cards } = useFinanceStore()
   const [periodType, setPeriodType] = useState<PeriodType>('month')
   const [anchor, setAnchor] = useState<Date>(new Date())
 
@@ -207,6 +207,27 @@ export default function DashboardPage() {
       .slice(0, 5),
     [periodTx]
   )
+
+  // Faturas de cartão projetadas (lançamentos futuros com card_id)
+  const futureCardBills = useMemo(() => {
+    const today = new Date()
+    today.setHours(23, 59, 59, 0)
+    const map: Record<string, { total: number; sortKey: number; label: string; items: { cardName: string; amount: number }[] }> = {}
+    filtered.forEach(t => {
+      if (!t.card_id || t.type !== 'expense') return
+      const d = parseISO(t.date)
+      if (d <= today) return
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const label = format(d, "MMMM 'de' yyyy", { locale: ptBR })
+      const cardName = cards.find(c => c.id === t.card_id)?.name ?? 'Cartão'
+      if (!map[key]) map[key] = { total: 0, sortKey: d.getFullYear() * 100 + d.getMonth(), label, items: [] }
+      map[key].total += t.amount
+      const existing = map[key].items.find(i => i.cardName === cardName)
+      if (existing) existing.amount += t.amount
+      else map[key].items.push({ cardName, amount: t.amount })
+    })
+    return Object.values(map).sort((a, b) => a.sortKey - b.sortKey).slice(0, 3)
+  }, [filtered, cards])
 
   return (
     <div className="p-4 lg:p-8 space-y-6 max-w-6xl mx-auto">
@@ -357,6 +378,34 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Faturas projetadas */}
+      {futureCardBills.length > 0 && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+              <TrendingDown className="w-4 h-4 text-amber-500" />
+            </div>
+            <h3 className="font-semibold text-slate-800">Faturas projetadas</h3>
+          </div>
+          <div className="space-y-3">
+            {futureCardBills.map(bill => (
+              <div key={bill.label} className="bg-slate-50 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-slate-700 capitalize">{bill.label}</span>
+                  <span className="text-sm font-bold text-expense-500">{formatCurrency(bill.total)}</span>
+                </div>
+                {bill.items.map(item => (
+                  <div key={item.cardName} className="flex items-center justify-between pl-2">
+                    <span className="text-xs text-slate-400">💳 {item.cardName}</span>
+                    <span className="text-xs font-medium text-slate-600">{formatCurrency(item.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Registros do período */}
       <div className="card p-5">
