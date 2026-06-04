@@ -1,68 +1,157 @@
 'use client'
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight,
-  Mic, Building2, User, Sparkles, AlertTriangle, CheckCircle, XCircle,
+  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
+  Mic, Sparkles, AlertTriangle, CheckCircle, XCircle,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import ModeToggle from '@/components/shared/ModeToggle'
 import { formatCurrency, getPercentageChange, getHealthStatus, cn } from '@/lib/utils'
 import type { ViewMode } from '@/types'
-import { format, parseISO, subMonths, isSameMonth, startOfMonth } from 'date-fns'
+import {
+  format, parseISO, subMonths, startOfMonth,
+  isSameDay, isSameMonth, isSameWeek,
+  addDays, addWeeks, addMonths, addYears,
+  startOfWeek, endOfWeek,
+  isToday, isThisMonth, isThisYear,
+} from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 const CATEGORY_COLORS = ['#6366F1', '#10B981', '#F43F5E', '#F59E0B', '#06B6D4', '#8B5CF6', '#EC4899']
 
+type PeriodType = 'day' | 'week' | 'month' | 'year'
+
+const PERIOD_TABS: { type: PeriodType; label: string }[] = [
+  { type: 'day', label: 'Dia' },
+  { type: 'week', label: 'Semana' },
+  { type: 'month', label: 'Mês' },
+  { type: 'year', label: 'Ano' },
+]
+
+function getPeriodLabel(type: PeriodType, anchor: Date): string {
+  switch (type) {
+    case 'day': return format(anchor, "d 'de' MMMM 'de' yyyy", { locale: ptBR })
+    case 'week': {
+      const s = startOfWeek(anchor, { weekStartsOn: 0 })
+      const e = endOfWeek(anchor, { weekStartsOn: 0 })
+      return `${format(s, 'd MMM', { locale: ptBR })} – ${format(e, 'd MMM', { locale: ptBR })}`
+    }
+    case 'month': return format(anchor, "MMMM 'de' yyyy", { locale: ptBR })
+    case 'year': return format(anchor, 'yyyy')
+  }
+}
+
+function navigatePeriod(type: PeriodType, date: Date, dir: 1 | -1): Date {
+  switch (type) {
+    case 'day': return addDays(date, dir)
+    case 'week': return addWeeks(date, dir)
+    case 'month': return addMonths(date, dir)
+    case 'year': return addYears(date, dir)
+  }
+}
+
+function isCurrentPeriod(type: PeriodType, date: Date): boolean {
+  if (type === 'day') return isToday(date)
+  if (type === 'week') return isSameWeek(date, new Date(), { weekStartsOn: 0 })
+  if (type === 'month') return isThisMonth(date)
+  return isThisYear(date)
+}
+
+function txInPeriod(txDate: Date, type: PeriodType, anchor: Date): boolean {
+  if (type === 'day') return isSameDay(txDate, anchor)
+  if (type === 'month') return isSameMonth(txDate, anchor)
+  if (type === 'year') return txDate.getFullYear() === anchor.getFullYear()
+  const s = startOfWeek(anchor, { weekStartsOn: 0 })
+  const e = endOfWeek(anchor, { weekStartsOn: 0 })
+  return txDate >= s && txDate <= e
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { transactions, viewMode, setViewMode } = useFinanceStore()
+  const [periodType, setPeriodType] = useState<PeriodType>('month')
+  const [anchor, setAnchor] = useState<Date>(new Date())
 
-  const filtered = useMemo(() => {
-    return transactions.filter(t => {
-      if (viewMode === 'all') return true
-      return t.mode === viewMode
-    })
-  }, [transactions, viewMode])
+  const filtered = useMemo(() =>
+    transactions.filter(t => viewMode === 'all' || t.mode === viewMode),
+    [transactions, viewMode]
+  )
 
-  const now = new Date()
-  const thisMonth = filtered.filter(t => isSameMonth(parseISO(t.date), now))
-  const lastMonth = filtered.filter(t => isSameMonth(parseISO(t.date), subMonths(now, 1)))
+  const periodTx = useMemo(() =>
+    filtered.filter(t => txInPeriod(parseISO(t.date), periodType, anchor)),
+    [filtered, periodType, anchor]
+  )
 
-  const totalIncome = thisMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const totalExpense = thisMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const prevTx = useMemo(() => {
+    const prev = navigatePeriod(periodType, anchor, -1)
+    return filtered.filter(t => txInPeriod(parseISO(t.date), periodType, prev))
+  }, [filtered, periodType, anchor])
+
+  const totalIncome = periodTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const totalExpense = periodTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const balance = totalIncome - totalExpense
 
-  const prevIncome = lastMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const prevExpense = lastMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const prevIncome = prevTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const prevExpense = prevTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
 
   const incomeChange = getPercentageChange(totalIncome, prevIncome)
   const expenseChange = getPercentageChange(totalExpense, prevExpense)
-
   const health = getHealthStatus(balance, totalExpense)
 
-  // Category breakdown
   const categoryData = useMemo(() => {
     const map: Record<string, number> = {}
-    thisMonth.filter(t => t.type === 'expense').forEach(t => {
+    periodTx.filter(t => t.type === 'expense').forEach(t => {
       map[t.category] = (map[t.category] || 0) + t.amount
     })
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([name, amount]) => ({ name, amount }))
-  }, [thisMonth])
+  }, [periodTx])
 
-  // Monthly trend (last 6 months, sorted chronologically)
-  const monthlyData = useMemo(() => {
+  const trendData = useMemo(() => {
+    if (periodType === 'year') {
+      const year = anchor.getFullYear()
+      return Array.from({ length: 12 }, (_, i) => {
+        const d = new Date(year, i, 1)
+        const txs = filtered.filter(t => isSameMonth(parseISO(t.date), d))
+        return {
+          label: format(d, 'MMM', { locale: ptBR }),
+          income: txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+          expense: txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+        }
+      })
+    }
+
+    if (periodType === 'day' || periodType === 'week') {
+      const weekStart = startOfWeek(anchor, { weekStartsOn: 0 })
+      return Array.from({ length: 7 }, (_, i) => {
+        const day = addDays(weekStart, i)
+        const txs = filtered.filter(t => isSameDay(parseISO(t.date), day))
+        return {
+          label: format(day, 'EEE', { locale: ptBR }),
+          income: txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+          expense: txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+          isSelected: isSameDay(day, anchor),
+        }
+      })
+    }
+
+    // month: últimos 6 meses centrados no anchor
     const map: Record<string, { income: number; expense: number; sortKey: number }> = {}
-    const sixMonthsAgo = subMonths(now, 5)
+    const sixAgo = subMonths(anchor, 5)
+    const endDate = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
     filtered
-      .filter(t => parseISO(t.date) >= startOfMonth(sixMonthsAgo))
+      .filter(t => {
+        const d = parseISO(t.date)
+        return d >= startOfMonth(sixAgo) && d <= endDate
+      })
       .forEach(t => {
         const d = parseISO(t.date)
-        const key = format(d, 'MMM', { locale: ptBR })
+        const key = format(d, 'MMM/yy', { locale: ptBR })
         const sortKey = d.getFullYear() * 100 + d.getMonth()
         if (!map[key]) map[key] = { income: 0, expense: 0, sortKey }
         if (t.type === 'income') map[key].income += t.amount
@@ -70,26 +159,31 @@ export default function DashboardPage() {
       })
     return Object.entries(map)
       .sort((a, b) => a[1].sortKey - b[1].sortKey)
-      .map(([month, vals]) => ({ month, income: vals.income, expense: vals.expense }))
-  }, [filtered, now])
+      .map(([label, vals]) => ({ label, income: vals.income, expense: vals.expense }))
+  }, [filtered, periodType, anchor])
 
-  // Top income sources
   const incomeSources = useMemo(() => {
     const map: Record<string, number> = {}
-    thisMonth.filter(t => t.type === 'income').forEach(t => {
+    periodTx.filter(t => t.type === 'income').forEach(t => {
       map[t.category] = (map[t.category] || 0) + t.amount
     })
     return Object.entries(map).sort((a, b) => b[1] - a[1])
-  }, [thisMonth])
+  }, [periodTx])
+
+  const periodName = { day: 'dia', week: 'semana', month: 'mês', year: 'ano' }[periodType]
 
   const aiInsight = useMemo(() => {
+    if (totalIncome === 0 && totalExpense === 0)
+      return `Nenhum lançamento encontrado neste ${periodName}.`
     const sign = balance >= 0 ? 'positivo' : 'negativo'
     const topExpense = categoryData[0]?.name || 'outros'
     const topIncome = incomeSources[0]?.[0] || 'diversas fontes'
-    const expTrend = expenseChange > 0 ? `aumentaram ${expenseChange.toFixed(0)}%` : `diminuíram ${Math.abs(expenseChange).toFixed(0)}%`
+    const expTrend = expenseChange > 0
+      ? `aumentaram ${expenseChange.toFixed(0)}% vs ${periodName} anterior`
+      : `diminuíram ${Math.abs(expenseChange).toFixed(0)}% vs ${periodName} anterior`
     const ctx = viewMode === 'business' ? 'sua empresa está' : viewMode === 'personal' ? 'suas finanças pessoais estão' : 'seu resultado geral está'
-    return `Este mês ${ctx} ${sign} em ${formatCurrency(Math.abs(balance))}. O maior gasto foi com ${topExpense}. A maior receita veio de ${topIncome}. Suas despesas ${expTrend} em relação ao mês anterior.`
-  }, [balance, categoryData, incomeSources, expenseChange, viewMode])
+    return `Neste ${periodName}, ${ctx} ${sign} em ${formatCurrency(Math.abs(balance))}. O maior gasto foi com ${topExpense}. A maior receita veio de ${topIncome}. Suas despesas ${expTrend}.`
+  }, [balance, categoryData, incomeSources, expenseChange, viewMode, periodName, totalIncome, totalExpense])
 
   const healthConfig = {
     good: { color: 'text-income-500', bg: 'bg-income-50', border: 'border-income-200', icon: CheckCircle, label: 'Saúde boa', desc: 'Você está no positivo' },
@@ -97,15 +191,80 @@ export default function DashboardPage() {
     danger: { color: 'text-expense-500', bg: 'bg-expense-50', border: 'border-expense-200', icon: XCircle, label: 'Risco', desc: 'Despesas maiores que receitas' },
   }[health]
 
+  const useBarChart = periodType !== 'month'
+  const trendTitle = {
+    day: 'Esta semana (dia a dia)',
+    week: 'Esta semana (dia a dia)',
+    month: 'Últimos 6 meses',
+    year: `Meses de ${anchor.getFullYear()}`,
+  }[periodType]
+
+  const isCurrent = isCurrentPeriod(periodType, anchor)
+
+  const recentTx = useMemo(() =>
+    [...periodTx]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5),
+    [periodTx]
+  )
+
   return (
     <div className="p-4 lg:p-8 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })}</p>
+          <p className="text-slate-500 text-sm mt-0.5 capitalize">{getPeriodLabel(periodType, anchor)}</p>
         </div>
         <ModeToggle value={viewMode} onChange={(m) => setViewMode(m as ViewMode)} size="sm" />
+      </div>
+
+      {/* Seletor de período */}
+      <div className="space-y-3">
+        <div className="flex bg-slate-100 rounded-2xl p-1 gap-0.5">
+          {PERIOD_TABS.map(({ type, label }) => (
+            <button
+              key={type}
+              onClick={() => { setPeriodType(type); setAnchor(new Date()) }}
+              className={cn(
+                'flex-1 py-2 rounded-xl text-xs font-semibold transition-all',
+                periodType === type ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setAnchor(d => navigatePeriod(periodType, d, -1))}
+            className="w-9 h-9 bg-white border border-slate-200 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-colors shadow-sm"
+          >
+            <ChevronLeft className="w-4 h-4 text-slate-600" />
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-800 capitalize">
+              {getPeriodLabel(periodType, anchor)}
+            </span>
+            {!isCurrent && (
+              <button
+                onClick={() => setAnchor(new Date())}
+                className="text-xs font-semibold text-primary-500 bg-primary-50 px-2 py-0.5 rounded-lg hover:bg-primary-100 transition-colors"
+              >
+                Hoje
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={() => setAnchor(d => navigatePeriod(periodType, d, 1))}
+            className="w-9 h-9 bg-white border border-slate-200 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-colors shadow-sm"
+          >
+            <ChevronRight className="w-4 h-4 text-slate-600" />
+          </button>
+        </div>
       </div>
 
       {/* Health banner */}
@@ -124,62 +283,50 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Metric cards */}
+      {/* Cards de métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard
-          label="Entradas"
-          value={totalIncome}
-          change={incomeChange}
-          type="income"
-          icon={TrendingUp}
-        />
-        <MetricCard
-          label="Saídas"
-          value={totalExpense}
-          change={expenseChange}
-          type="expense"
-          icon={TrendingDown}
-        />
-        <MetricCard
-          label="Saldo"
-          value={balance}
-          type={balance >= 0 ? 'income' : 'expense'}
-          icon={balance >= 0 ? TrendingUp : TrendingDown}
-          colSpan
-        />
+        <MetricCard label="Entradas" value={totalIncome} change={incomeChange} type="income" icon={TrendingUp} periodName={periodName} />
+        <MetricCard label="Saídas" value={totalExpense} change={expenseChange} type="expense" icon={TrendingDown} periodName={periodName} />
+        <MetricCard label="Saldo" value={balance} type={balance >= 0 ? 'income' : 'expense'} icon={balance >= 0 ? TrendingUp : TrendingDown} colSpan periodName={periodName} />
       </div>
 
-      {/* Charts row */}
+      {/* Gráficos */}
       <div className="grid lg:grid-cols-3 gap-4">
-        {/* Area chart */}
         <div className="card p-5 lg:col-span-2">
-          <h3 className="font-semibold text-slate-800 mb-4">Entradas vs Saídas</h3>
+          <h3 className="font-semibold text-slate-800 mb-4">{trendTitle}</h3>
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={monthlyData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-              <defs>
-                <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#F43F5E" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-              <Tooltip
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: '12px' }}
-                formatter={(v: number) => [formatCurrency(v)]}
-              />
-              <Area type="monotone" dataKey="income" stroke="#10B981" strokeWidth={2} fill="url(#incomeGrad)" name="Entradas" />
-              <Area type="monotone" dataKey="expense" stroke="#F43F5E" strokeWidth={2} fill="url(#expenseGrad)" name="Saídas" />
-            </AreaChart>
+            {useBarChart ? (
+              <BarChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: '12px' }} formatter={(v: number) => [formatCurrency(v)]} />
+                <Bar dataKey="income" fill="#10B981" name="Entradas" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                <Bar dataKey="expense" fill="#F43F5E" name="Saídas" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              </BarChart>
+            ) : (
+              <AreaChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#F43F5E" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: '12px' }} formatter={(v: number) => [formatCurrency(v)]} />
+                <Area type="monotone" dataKey="income" stroke="#10B981" strokeWidth={2} fill="url(#incomeGrad)" name="Entradas" />
+                <Area type="monotone" dataKey="expense" stroke="#F43F5E" strokeWidth={2} fill="url(#expenseGrad)" name="Saídas" />
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </div>
 
-        {/* Category pie */}
         <div className="card p-5">
           <h3 className="font-semibold text-slate-800 mb-4">Maiores gastos</h3>
           {categoryData.length > 0 ? (
@@ -193,12 +340,12 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-slate-400 text-center py-8">Sem gastos este mês</p>
+            <p className="text-sm text-slate-400 text-center py-8">Sem gastos neste período</p>
           )}
         </div>
       </div>
 
-      {/* AI Insight */}
+      {/* Análise da IA */}
       <div className="card p-5 bg-gradient-to-br from-primary-50 to-indigo-50 border-primary-100">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 bg-primary-500 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
@@ -206,41 +353,37 @@ export default function DashboardPage() {
           </div>
           <div>
             <p className="font-semibold text-primary-800 text-sm mb-1">Análise da IA</p>
-            <p className="text-slate-700 text-sm leading-relaxed">{aiInsight}</p>
+            <p className="text-slate-700 text-sm leading-relaxed capitalize-first">{aiInsight}</p>
           </div>
         </div>
       </div>
 
-      {/* Recent transactions preview */}
+      {/* Registros do período */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-800">Últimos registros</h3>
-          <button
-            onClick={() => router.push('/timeline')}
-            className="text-sm text-primary-500 font-medium hover:underline"
-          >
+          <h3 className="font-semibold text-slate-800">Registros do período</h3>
+          <button onClick={() => router.push('/timeline')} className="text-sm text-primary-500 font-medium hover:underline">
             Ver todos
           </button>
         </div>
-        {thisMonth.length === 0 ? (
+        {recentTx.length === 0 ? (
           <div className="text-center py-8">
             <Mic className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Nenhum registro este mês ainda.</p>
+            <p className="text-sm text-slate-400">Nenhum registro neste período.</p>
             <button onClick={() => router.push('/registrar')} className="mt-3 text-sm text-primary-500 font-semibold hover:underline">
               Registrar agora
             </button>
           </div>
         ) : (
           <div className="space-y-3">
-            {thisMonth.slice(0, 5).map((t) => (
+            {recentTx.map((t) => (
               <div key={t.id} className="flex items-center gap-3">
                 <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
                   t.type === 'income' ? 'bg-income-50' : 'bg-expense-50'
                 )}>
                   {t.type === 'income'
                     ? <TrendingUp className="w-4 h-4 text-income-500" />
-                    : <TrendingDown className="w-4 h-4 text-expense-500" />
-                  }
+                    : <TrendingDown className="w-4 h-4 text-expense-500" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 truncate">{t.description}</p>
@@ -257,7 +400,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* FAB for mobile voice */}
+      {/* FAB mobile */}
       <div className="lg:hidden fixed bottom-20 right-4 z-40">
         <button
           onClick={() => router.push('/registrar')}
@@ -271,7 +414,7 @@ export default function DashboardPage() {
 }
 
 function MetricCard({
-  label, value, change, type, icon: Icon, colSpan,
+  label, value, change, type, icon: Icon, colSpan, periodName,
 }: {
   label: string
   value: number
@@ -279,6 +422,7 @@ function MetricCard({
   type: 'income' | 'expense'
   icon: React.ComponentType<{ className?: string }>
   colSpan?: boolean
+  periodName: string
 }) {
   const isPositive = (change ?? 0) >= 0
   const isIncome = type === 'income'
@@ -302,10 +446,9 @@ function MetricCard({
         <div className="flex items-center gap-1 mt-2">
           {isPositive
             ? <ArrowUpRight className="w-3.5 h-3.5 text-income-500" />
-            : <ArrowDownRight className="w-3.5 h-3.5 text-expense-500" />
-          }
+            : <ArrowDownRight className="w-3.5 h-3.5 text-expense-500" />}
           <span className={cn('text-xs font-medium', isPositive ? 'text-income-500' : 'text-expense-500')}>
-            {Math.abs(change).toFixed(1)}% vs mês anterior
+            {Math.abs(change).toFixed(1)}% vs {periodName} anterior
           </span>
         </div>
       )}
