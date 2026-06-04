@@ -4,13 +4,13 @@ import { useRouter } from 'next/navigation'
 import {
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Mic, Sparkles, AlertTriangle, CheckCircle, XCircle,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, CreditCard, Bell, X,
 } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import ModeToggle from '@/components/shared/ModeToggle'
 import { formatCurrency, getPercentageChange, getHealthStatus, cn } from '@/lib/utils'
-import type { ViewMode } from '@/types'
+import type { ViewMode, CreditCard as CC } from '@/types'
 import {
   format, parseISO, subMonths, startOfMonth,
   isSameDay, isSameMonth, isSameWeek,
@@ -71,9 +71,11 @@ function txInPeriod(txDate: Date, type: PeriodType, anchor: Date): boolean {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { transactions, viewMode, setViewMode, cards } = useFinanceStore()
+  const { transactions, viewMode, setViewMode, cards, updateTransaction } = useFinanceStore()
   const [periodType, setPeriodType] = useState<PeriodType>('month')
   const [anchor, setAnchor] = useState<Date>(new Date())
+  const [confirmPayCard, setConfirmPayCard] = useState<{ card: CC; total: number; txIds: string[]; dueDate: Date; daysUntilDue: number } | null>(null)
+  const [paidAlerts, setPaidAlerts] = useState<Set<string>>(new Set())
 
   const filtered = useMemo(() =>
     transactions.filter(t => viewMode === 'all' || t.mode === viewMode),
@@ -209,6 +211,37 @@ export default function DashboardPage() {
 
   const isCurrent = isCurrentPeriod(periodType, anchor)
 
+  // Alertas de fatura: cartões com pending transactions vencendo em até 7 dias ou vencidas
+  const billAlerts = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const in7Days = new Date(today)
+    in7Days.setDate(in7Days.getDate() + 7)
+
+    const result: { card: CC; total: number; daysUntilDue: number; txIds: string[]; dueDate: Date }[] = []
+    for (const card of cards) {
+      if (!card.dueDay || !card.active) continue
+      const pendingTx = filtered.filter(t =>
+        t.card_id === card.id && t.status === 'pending' && t.type === 'expense' &&
+        parseISO(t.date) <= in7Days
+      )
+      if (pendingTx.length === 0) continue
+      const dueDates = pendingTx.map(t => parseISO(t.date).getTime())
+      const dueDate = new Date(Math.min(...dueDates))
+      const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      result.push({ card, total: pendingTx.reduce((s, t) => s + t.amount, 0), daysUntilDue, txIds: pendingTx.map(t => t.id), dueDate })
+    }
+    return result
+      .filter(a => !paidAlerts.has(a.card.id))
+      .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
+  }, [cards, filtered, paidAlerts])
+
+  function handleMarkAsPaid(txIds: string[], cardId: string) {
+    for (const id of txIds) updateTransaction(id, { status: 'confirmed' })
+    setPaidAlerts(prev => new Set([...prev, cardId]))
+    setConfirmPayCard(null)
+  }
+
   const recentTx = useMemo(() =>
     [...periodTx]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -295,6 +328,38 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Alertas de fatura */}
+      {billAlerts.map(alert => {
+        const isOverdue = alert.daysUntilDue < 0
+        const isDueToday = alert.daysUntilDue === 0
+        const label = isOverdue
+          ? `Vencida há ${Math.abs(alert.daysUntilDue)} dia${Math.abs(alert.daysUntilDue) > 1 ? 's' : ''}`
+          : isDueToday ? 'Vence hoje!'
+          : `Vence em ${alert.daysUntilDue} dia${alert.daysUntilDue > 1 ? 's' : ''}`
+        const color = isOverdue || isDueToday
+          ? 'bg-expense-50 border-expense-300'
+          : 'bg-amber-50 border-amber-300'
+        const textColor = isOverdue || isDueToday ? 'text-expense-700' : 'text-amber-700'
+        const iconColor = isOverdue || isDueToday ? 'text-expense-500' : 'text-amber-500'
+        return (
+          <div key={alert.card.id} className={cn('rounded-2xl p-4 border flex items-center gap-3', color)}>
+            <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', isOverdue || isDueToday ? 'bg-expense-100' : 'bg-amber-100')}>
+              <Bell className={cn('w-4 h-4', iconColor)} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={cn('font-bold text-sm', textColor)}>💳 {alert.card.name} · {label}</p>
+              <p className="text-slate-600 text-xs mt-0.5">Fatura de <span className="font-semibold">{formatCurrency(alert.total)}</span> aguardando confirmação</p>
+            </div>
+            <button
+              onClick={() => setConfirmPayCard(alert)}
+              className="shrink-0 bg-primary-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-primary-600 transition-colors"
+            >
+              Pagar
+            </button>
+          </div>
+        )
+      })}
 
       {/* Health banner */}
       <div className={cn('rounded-2xl p-4 border flex items-center gap-3', healthConfig.bg, healthConfig.border)}>
@@ -456,6 +521,51 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Modal confirmação de pagamento */}
+      {confirmPayCard && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setConfirmPayCard(null)}>
+          <div className="w-full bg-white rounded-t-3xl p-6 space-y-5 animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 bg-primary-100 rounded-xl flex items-center justify-center">
+                  <CreditCard className="w-4 h-4 text-primary-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">{confirmPayCard.card.name}</p>
+                  <p className="text-xs text-slate-400">
+                    Vencimento: {format(confirmPayCard.dueDate, "d 'de' MMMM", { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setConfirmPayCard(null)} className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-4 text-center">
+              <p className="text-xs text-slate-400 mb-1">Total da fatura</p>
+              <p className="text-3xl font-bold text-slate-800">{formatCurrency(confirmPayCard.total)}</p>
+              <p className="text-xs text-slate-400 mt-1">{confirmPayCard.txIds.length} lançamento{confirmPayCard.txIds.length > 1 ? 's' : ''}</p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => handleMarkAsPaid(confirmPayCard.txIds, confirmPayCard.card.id)}
+                className="w-full bg-income-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-income-600 transition-colors"
+              >
+                <CheckCircle className="w-5 h-5" /> Paguei tudo — {formatCurrency(confirmPayCard.total)}
+              </button>
+              <button
+                onClick={() => setConfirmPayCard(null)}
+                className="w-full bg-slate-100 text-slate-600 font-semibold py-3 rounded-2xl text-sm hover:bg-slate-200 transition-colors"
+              >
+                Ainda não paguei
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FAB mobile */}
       <div className="lg:hidden fixed bottom-20 right-4 z-40">
