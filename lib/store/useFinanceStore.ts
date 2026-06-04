@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { supabase } from '@/lib/supabase/client'
 import type { Transaction, Recurrence, ViewMode, Mode, CreditCard, CategoryItem, UserProfile, ProfilePermissions } from '@/types'
 import { OWNER_PERMISSIONS, DEFAULT_MEMBER_PERMISSIONS } from '@/types'
+import { AppError } from '@/lib/errors'
 
 export function getProfilePermissions(profiles: UserProfile[], activeProfileId: string): ProfilePermissions {
   const profile = profiles.find(p => p.id === activeProfileId)
@@ -389,7 +390,7 @@ export const useFinanceStore = create<FinanceStore>()(
           const { error } = await supabase.from('transactions').upsert(transactionToDb(item, userId))
           if (error) {
             set((state) => ({ transactions: state.transactions.filter(tr => tr.id !== item.id) }))
-            throw error
+            throw new AppError('TX-001', error.message)
           }
         }
       },
@@ -399,7 +400,7 @@ export const useFinanceStore = create<FinanceStore>()(
         set((state) => ({ transactions: state.transactions.filter((t) => t.id !== id) }))
         if (get().cloudUserId) {
           const { error } = await supabase.from('transactions').delete().eq('id', id)
-          if (error) { set({ transactions: prev }); throw error }
+          if (error) { set({ transactions: prev }); throw new AppError('TX-003', error.message) }
         }
       },
 
@@ -411,7 +412,7 @@ export const useFinanceStore = create<FinanceStore>()(
         const userId = get().cloudUserId
         if (userId && item) {
           const { error } = await supabase.from('transactions').upsert(transactionToDb(item, userId))
-          if (error) { set({ transactions: prev }); throw error }
+          if (error) { set({ transactions: prev }); throw new AppError('TX-002', error.message) }
         }
       },
 
@@ -421,7 +422,7 @@ export const useFinanceStore = create<FinanceStore>()(
         set((state) => ({ recurrences: [item, ...state.recurrences] }))
         if (userId) {
           const { error } = await supabase.from('recurrences').upsert(recurrenceToDb(item, userId))
-          if (error) { set((state) => ({ recurrences: state.recurrences.filter(rec => rec.id !== item.id) })); throw error }
+          if (error) { set((state) => ({ recurrences: state.recurrences.filter(rec => rec.id !== item.id) })); throw new AppError('REC-001', error.message) }
         }
       },
 
@@ -433,7 +434,7 @@ export const useFinanceStore = create<FinanceStore>()(
         const userId = get().cloudUserId
         if (userId && item) {
           const { error } = await supabase.from('recurrences').upsert(recurrenceToDb(item, userId))
-          if (error) { set({ recurrences: prev }); throw error }
+          if (error) { set({ recurrences: prev }); throw new AppError('REC-002', error.message) }
         }
       },
 
@@ -445,7 +446,7 @@ export const useFinanceStore = create<FinanceStore>()(
         const userId = get().cloudUserId
         if (userId && item) {
           const { error } = await supabase.from('recurrences').upsert(recurrenceToDb(item, userId))
-          if (error) { set({ recurrences: prev }); throw error }
+          if (error) { set({ recurrences: prev }); throw new AppError('REC-004', error.message) }
         }
       },
 
@@ -454,7 +455,7 @@ export const useFinanceStore = create<FinanceStore>()(
         set((state) => ({ recurrences: state.recurrences.filter((r) => r.id !== id) }))
         if (get().cloudUserId) {
           const { error } = await supabase.from('recurrences').delete().eq('id', id)
-          if (error) { set({ recurrences: prev }); throw error }
+          if (error) { set({ recurrences: prev }); throw new AppError('REC-003', error.message) }
         }
       },
 
@@ -475,7 +476,7 @@ export const useFinanceStore = create<FinanceStore>()(
           if (error && error.code !== '23505') {
             if (mode === 'personal') set((state) => ({ categoriesPersonal: state.categoriesPersonal.filter(c => c.name !== trimmed) }))
             else set((state) => ({ categoriesBusiness: state.categoriesBusiness.filter(c => c.name !== trimmed) }))
-            throw error
+            throw new AppError('CAT-001', error.message)
           }
         }
       },
@@ -487,7 +488,7 @@ export const useFinanceStore = create<FinanceStore>()(
         const { cloudUserId } = get()
         if (cloudUserId) {
           const { error } = await supabase.from('categories').delete().eq('user_id', cloudUserId).eq('name', name).eq('mode', mode)
-          if (error) { set(prev); throw error }
+          if (error) { set(prev); throw new AppError('CAT-002', error.message) }
         }
       },
 
@@ -497,7 +498,7 @@ export const useFinanceStore = create<FinanceStore>()(
         const { cloudUserId } = get()
         if (cloudUserId) {
           const { error } = await supabase.from('profiles').upsert(profileToDb(item, cloudUserId))
-          if (error) { set((s) => ({ profiles: s.profiles.filter(prof => prof.id !== item.id) })); throw error }
+          if (error) { set((s) => ({ profiles: s.profiles.filter(prof => prof.id !== item.id) })); throw new AppError('PROF-001', error.message) }
         }
       },
 
@@ -509,7 +510,7 @@ export const useFinanceStore = create<FinanceStore>()(
         const { cloudUserId } = get()
         if (cloudUserId && item) {
           const { error } = await supabase.from('profiles').upsert(profileToDb(item, cloudUserId))
-          if (error) { set({ profiles: prev }); throw error }
+          if (error) { set({ profiles: prev }); throw new AppError('PROF-002', error.message) }
         }
       },
 
@@ -518,7 +519,7 @@ export const useFinanceStore = create<FinanceStore>()(
         set((s) => ({ profiles: s.profiles.filter(p => p.id !== id), activeProfileId: s.activeProfileId === id ? '' : s.activeProfileId }))
         if (get().cloudUserId) {
           const { error } = await supabase.from('profiles').delete().eq('id', id)
-          if (error) { set(prev); throw error }
+          if (error) { set(prev); throw new AppError('PROF-003', error.message) }
         }
       },
 
@@ -528,7 +529,7 @@ export const useFinanceStore = create<FinanceStore>()(
         set((s) => ({ cards: [item, ...s.cards] }))
         if (userId) {
           const { error } = await supabase.from('credit_cards').upsert(cardToDb(item, userId))
-          if (error) { set((s) => ({ cards: s.cards.filter(c => c.id !== item.id) })); throw error }
+          if (error) { set((s) => ({ cards: s.cards.filter(c => c.id !== item.id) })); throw new AppError('CARD-001', error.message) }
         }
       },
 
@@ -540,7 +541,7 @@ export const useFinanceStore = create<FinanceStore>()(
         const { cloudUserId } = get()
         if (cloudUserId && item) {
           const { error } = await supabase.from('credit_cards').upsert(cardToDb(item, cloudUserId))
-          if (error) { set({ cards: prev }); throw error }
+          if (error) { set({ cards: prev }); throw new AppError('CARD-002', error.message) }
         }
       },
 
@@ -549,7 +550,7 @@ export const useFinanceStore = create<FinanceStore>()(
         set((s) => ({ cards: s.cards.filter(c => c.id !== id) }))
         if (get().cloudUserId) {
           const { error } = await supabase.from('credit_cards').delete().eq('id', id)
-          if (error) { set({ cards: prev }); throw error }
+          if (error) { set({ cards: prev }); throw new AppError('CARD-003', error.message) }
         }
       },
     })

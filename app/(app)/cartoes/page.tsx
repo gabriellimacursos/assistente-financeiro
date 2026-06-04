@@ -6,6 +6,10 @@ import {
 } from 'lucide-react'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import { formatCurrency, formatTime, cn } from '@/lib/utils'
+import HelpTooltip from '@/components/shared/HelpTooltip'
+import ErrorBanner from '@/components/shared/ErrorBanner'
+import { formatError } from '@/lib/errors'
+import type { ErrorCode } from '@/lib/errors'
 import type { CreditCard as CC, Mode } from '@/types'
 import { isSameMonth } from 'date-fns'
 
@@ -35,7 +39,7 @@ export default function CartoesPage() {
   const [limitStr, setLimitStr] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [dbError, setDbError] = useState<string | null>(null)
+  const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
 
   const now = new Date()
 
@@ -77,7 +81,7 @@ export default function CartoesPage() {
   async function handleSave() {
     if (!form.name.trim()) return
     setSaving(true)
-    setDbError(null)
+    setAppError(null)
     const limit = limitStr ? parseFloat(limitStr) : undefined
     const data = { ...form, limit, lastDigits: form.lastDigits.slice(-4) }
     try {
@@ -87,8 +91,8 @@ export default function CartoesPage() {
         await addCard({ ...data, id: '', active: true, created_at: new Date().toISOString() })
       }
       setShowModal(false)
-    } catch {
-      setDbError('Erro ao salvar cartão. Tente novamente.')
+    } catch (err) {
+      setAppError(formatError(err))
     } finally {
       setSaving(false)
     }
@@ -222,7 +226,10 @@ export default function CartoesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Cartões</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-bold text-slate-800">Cartões</h1>
+            <HelpTooltip id="cartoes.list" />
+          </div>
           <p className="text-slate-500 text-sm">Controle por cartão de crédito</p>
         </div>
         {canManage && (
@@ -236,7 +243,10 @@ export default function CartoesPage() {
       {/* Total this month */}
       {cards.length > 0 && (
         <div className="card p-5 bg-gradient-to-br from-slate-700 to-slate-900 text-white">
-          <p className="text-white/60 text-xs font-semibold uppercase tracking-wider mb-1">Total nos cartões este mês</p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <p className="text-white/60 text-xs font-semibold uppercase tracking-wider">Total nos cartões este mês</p>
+            <HelpTooltip id="cartoes.total" />
+          </div>
           <p className="text-3xl font-bold">{formatCurrency(totalSpentCards)}</p>
           <p className="text-white/50 text-xs mt-1">{cards.filter(c => c.active).length} cartões ativos</p>
         </div>
@@ -315,12 +325,12 @@ export default function CartoesPage() {
                       <button onClick={async e => {
                         e.stopPropagation()
                         setSaving(true)
-                        setDbError(null)
+                        setAppError(null)
                         try {
                           await removeCard(card.id)
                           setConfirmDelete(null)
-                        } catch {
-                          setDbError('Erro ao remover cartão. Tente novamente.')
+                        } catch (err) {
+                          setAppError(formatError(err))
                           setConfirmDelete(null)
                         } finally {
                           setSaving(false)
@@ -421,7 +431,10 @@ export default function CartoesPage() {
 
             {/* Limite (opcional) */}
             <div>
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Limite (opcional)</label>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Limite (opcional)</label>
+                <HelpTooltip id="cartoes.spending-bar" />
+              </div>
               <div className="flex items-center gap-2 bg-slate-50 rounded-2xl px-4 py-3 border-2 border-slate-200 focus-within:border-primary-400">
                 <span className="text-slate-400 text-sm font-semibold">R$</span>
                 <input type="number" value={limitStr} onChange={e => setLimitStr(e.target.value)}
@@ -432,14 +445,20 @@ export default function CartoesPage() {
             {/* Datas de fechamento/vencimento */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Fecha dia</label>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha dia</label>
+                  <HelpTooltip id="cartoes.closing-day" />
+                </div>
                 <input type="number" min={1} max={31}
                   value={form.closingDay || ''} onChange={e => setForm(f => ({ ...f, closingDay: parseInt(e.target.value) || undefined }))}
                   placeholder="Ex: 3"
                   className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 transition-all" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Vence dia</label>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Vence dia</label>
+                  <HelpTooltip id="cartoes.due-day" />
+                </div>
                 <input type="number" min={1} max={31}
                   value={form.dueDay || ''} onChange={e => setForm(f => ({ ...f, dueDay: parseInt(e.target.value) || undefined }))}
                   placeholder="Ex: 10"
@@ -447,13 +466,15 @@ export default function CartoesPage() {
               </div>
             </div>
 
-            {dbError && (
-              <div className="flex items-center justify-between gap-2 bg-expense-50 border border-expense-200 text-expense-700 text-sm rounded-2xl px-4 py-3">
-                <span>{dbError}</span>
-                <button onClick={() => setDbError(null)} className="shrink-0 text-expense-500 hover:text-expense-700">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+            {appError && (
+              <ErrorBanner
+                title={appError.title}
+                description={appError.description}
+                action={appError.action}
+                code={appError.code}
+                severity={appError.severity}
+                onClose={() => setAppError(null)}
+              />
             )}
 
             <button onClick={handleSave} disabled={!form.name.trim() || saving}

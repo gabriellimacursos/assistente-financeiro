@@ -11,6 +11,10 @@ import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { cn } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import HelpTooltip from '@/components/shared/HelpTooltip'
+import ErrorBanner from '@/components/shared/ErrorBanner'
+import { AppError, formatError } from '@/lib/errors'
+import type { ErrorCode } from '@/lib/errors'
 
 type RegistryUser = {
   id: string
@@ -41,6 +45,7 @@ export default function AdminPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<RegistryUser | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
 
   useEffect(() => {
     if (syncStatus === 'loading') return
@@ -58,10 +63,12 @@ export default function AdminPage() {
 
   async function loadUsers() {
     setLoading(true)
-    const { data } = await supabase
+    setAppError(null)
+    const { data, error } = await supabase
       .from('user_registry')
       .select('*')
       .order('created_at', { ascending: false })
+    if (error) setAppError(formatError(new AppError('ADM-001', error.message)))
     setUsers(data ?? [])
     setLoading(false)
   }
@@ -188,16 +195,33 @@ export default function AdminPage() {
           <div className="flex items-center gap-2 mb-0.5">
             <Shield className="w-5 h-5 text-primary-500" />
             <h1 className="text-2xl font-bold text-slate-800">Painel Admin</h1>
+            <HelpTooltip id="admin.panel" />
           </div>
           <p className="text-slate-500 text-sm">Controle total sobre os usuários</p>
         </div>
-        <button
-          onClick={loadUsers}
-          className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200 transition-colors"
-        >
-          <RefreshCw className="w-4 h-4 text-slate-500" />
-        </button>
+        <div className="flex items-center gap-2">
+          <HelpTooltip id="admin.refresh" />
+          <button
+            onClick={loadUsers}
+            className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200 transition-colors"
+            title="Recarregar lista"
+          >
+            <RefreshCw className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
       </div>
+
+      {/* Error banner */}
+      {appError && (
+        <ErrorBanner
+          title={appError.title}
+          description={appError.description}
+          action={appError.action}
+          code={appError.code}
+          severity={appError.severity}
+          onClose={() => setAppError(null)}
+        />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -350,6 +374,8 @@ function UserRow({ user: u, processingId, onApprove, onSuspend, onReset, onDelet
               <span className={cn('w-1.5 h-1.5 rounded-full', badge.dot)} />
               {badge.label}
             </span>
+            <HelpTooltip id={`admin.status-${u.status}`} size="sm" />
+            {u.is_admin && <HelpTooltip id="admin.is-admin" size="sm" />}
             <span className="flex items-center gap-1 text-xs text-slate-400">
               <Calendar className="w-3 h-3" />
               {format(parseISO(u.created_at), "dd/MM/yyyy", { locale: ptBR })}
@@ -368,6 +394,7 @@ function UserRow({ user: u, processingId, onApprove, onSuspend, onReset, onDelet
               color="emerald"
               icon={<CheckCircle className="w-3.5 h-3.5" />}
               label={u.status === 'suspended' ? 'Reativar' : 'Aprovar'}
+              helpId="admin.approve"
             />
           )}
           {u.status === 'active' && (
@@ -377,6 +404,7 @@ function UserRow({ user: u, processingId, onApprove, onSuspend, onReset, onDelet
               color="amber"
               icon={<XCircle className="w-3.5 h-3.5" />}
               label="Suspender"
+              helpId="admin.suspend"
             />
           )}
           <ActionBtn
@@ -385,6 +413,7 @@ function UserRow({ user: u, processingId, onApprove, onSuspend, onReset, onDelet
             color="blue"
             icon={<KeyRound className="w-3.5 h-3.5" />}
             label="Reset senha"
+            helpId="admin.reset-password"
           />
           <ActionBtn
             onClick={onDelete}
@@ -392,6 +421,7 @@ function UserRow({ user: u, processingId, onApprove, onSuspend, onReset, onDelet
             color="red"
             icon={<Trash2 className="w-3.5 h-3.5" />}
             label="Deletar tudo"
+            helpId="admin.delete-user"
           />
         </div>
       )}
@@ -399,12 +429,13 @@ function UserRow({ user: u, processingId, onApprove, onSuspend, onReset, onDelet
   )
 }
 
-function ActionBtn({ onClick, disabled, color, icon, label }: {
+function ActionBtn({ onClick, disabled, color, icon, label, helpId }: {
   onClick: () => void
   disabled: boolean
   color: 'emerald' | 'amber' | 'blue' | 'red' | 'slate'
   icon: React.ReactNode
   label: string
+  helpId?: string
 }) {
   const colors = {
     emerald: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200',
@@ -414,16 +445,19 @@ function ActionBtn({ onClick, disabled, color, icon, label }: {
     slate:   'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed',
   }
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors disabled:opacity-50',
-        colors[color]
-      )}
-    >
-      {icon}
-      {label}
-    </button>
+    <div className="inline-flex items-center gap-1">
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={cn(
+          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors disabled:opacity-50',
+          colors[color]
+        )}
+      >
+        {icon}
+        {label}
+      </button>
+      {helpId && <HelpTooltip id={helpId} size="sm" />}
+    </div>
   )
 }

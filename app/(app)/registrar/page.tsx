@@ -8,6 +8,10 @@ import { useVoiceRecorder } from '@/hooks/useVoiceRecorder'
 import { interpretFinancialInput, getCategoryOptions } from '@/lib/ai/interpreter'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import { formatCurrency, formatShortDate, formatDateInput, cn } from '@/lib/utils'
+import HelpTooltip from '@/components/shared/HelpTooltip'
+import ErrorBanner from '@/components/shared/ErrorBanner'
+import { formatError } from '@/lib/errors'
+import type { ErrorCode } from '@/lib/errors'
 import type { AIInterpretation, Transaction, RecurrenceFrequency, Mode } from '@/types'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -60,7 +64,7 @@ export default function RegistrarPage() {
   const [newCatDirection, setNewCatDirection] = useState<'income' | 'expense' | 'both'>('both')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [installmentCount, setInstallmentCount] = useState(1)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
 
   // Auto-set date to card due date when card is selected
   useEffect(() => {
@@ -266,8 +270,8 @@ export default function RegistrarPage() {
         setInstallmentCount(1)
         inputRef.current?.focus()
       }, 1600)
-    } catch {
-      setSaveError('Falha ao salvar. Verifique sua conexão e tente novamente.')
+    } catch (err) {
+      setAppError(formatError(err))
     }
   }
 
@@ -564,20 +568,21 @@ export default function RegistrarPage() {
         {/* Editable fields */}
         <div className="grid grid-cols-2 gap-2">
           <EditButton label="Tipo" value={interpretation.type === 'income' ? '↑ Entrada' : '↓ Saída'}
-            color={interpretation.type === 'income' ? 'income' : 'expense'} onClick={() => setEditField('type')} />
+            color={interpretation.type === 'income' ? 'income' : 'expense'} onClick={() => setEditField('type')} helpId="registrar.confirm-type" />
           <EditButton label="Categoria" value={interpretation.category} onClick={() => {
             setNewCatDirection(interpretation.type)
             setNewCatInput('')
             setEditField('category')
-          }} />
+          }} helpId="registrar.confirm-category" />
           <EditButton label="Modo" value={interpretation.mode === 'business' ? '🏢 Empresa' : '👤 Pessoal'} onClick={() => setEditField('mode')} />
-          <EditButton label="Data" value={dateFormatted} onClick={() => setEditField('date')} />
+          <EditButton label="Data" value={dateFormatted} onClick={() => setEditField('date')} helpId="registrar.confirm-date" />
           {cards.length > 0 && (
             <div className="col-span-2">
               <EditButton
                 label="Cartão usado (opcional)"
                 value={selectedCardId ? (cards.find(c => c.id === selectedCardId)?.name ?? 'Cartão') : 'Dinheiro / PIX'}
                 onClick={() => setEditField('card')}
+                helpId="registrar.confirm-card"
               />
             </div>
           )}
@@ -601,10 +606,15 @@ export default function RegistrarPage() {
 
         {/* Confirm */}
         <div className="space-y-2 pt-1">
-          {saveError && (
-            <div className="bg-expense-50 border border-expense-200 rounded-2xl px-4 py-3">
-              <p className="text-expense-700 text-sm font-medium">{saveError}</p>
-            </div>
+          {appError && (
+            <ErrorBanner
+              title={appError.title}
+              description={appError.description}
+              action={appError.action}
+              code={appError.code}
+              severity={appError.severity}
+              onClose={() => setAppError(null)}
+            />
           )}
           <button onClick={handleConfirm} className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4">
             <Check className="w-5 h-5" />
@@ -871,7 +881,10 @@ export default function RegistrarPage() {
       {/* Header com toggle de modo */}
       <div className="pt-8 pb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">O que aconteceu?</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-bold text-slate-800">O que aconteceu?</h1>
+            <HelpTooltip id="registrar.text-input" />
+          </div>
           {activeProfile && (
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className={cn('w-4 h-4 rounded-full bg-gradient-to-br shrink-0', activeProfile.color)} />
@@ -879,17 +892,20 @@ export default function RegistrarPage() {
             </div>
           )}
         </div>
-        <div className="flex bg-slate-100 rounded-2xl p-1 gap-0.5">
-          <button onClick={() => setActiveMode('business')}
-            className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all',
-              activeMode === 'business' ? 'bg-primary-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
-            <Building2 className="w-3 h-3" /> Empresa
-          </button>
-          <button onClick={() => setActiveMode('personal')}
-            className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all',
-              activeMode === 'personal' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
-            <User className="w-3 h-3" /> Pessoal
-          </button>
+        <div className="flex items-center gap-1.5">
+          <HelpTooltip id="registrar.mode-toggle" />
+          <div className="flex bg-slate-100 rounded-2xl p-1 gap-0.5">
+            <button onClick={() => setActiveMode('business')}
+              className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all',
+                activeMode === 'business' ? 'bg-primary-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+              <Building2 className="w-3 h-3" /> Empresa
+            </button>
+            <button onClick={() => setActiveMode('personal')}
+              className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all',
+                activeMode === 'personal' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+              <User className="w-3 h-3" /> Pessoal
+            </button>
+          </div>
         </div>
       </div>
 
@@ -921,7 +937,8 @@ export default function RegistrarPage() {
             </button>
           )}
 
-          {/* Botão microfone */}
+          {/* Ajuda e microfone */}
+          <HelpTooltip id="registrar.mic" />
           <button
             onClick={handleMicClick}
             disabled={isProcessing}
@@ -957,7 +974,10 @@ export default function RegistrarPage() {
       {/* ── Sugestões frequentes — compactas ── */}
       {!isListening && !isProcessing && smartSuggestions.length > 0 && (
         <div className="mt-5">
-          <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Frequentes</p>
+          <div className="flex items-center gap-1.5 mb-2">
+            <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Frequentes</p>
+            <HelpTooltip id="registrar.smart-suggestions" />
+          </div>
           <div className="flex flex-wrap gap-2">
             {smartSuggestions.map((t) => (
               <button
@@ -978,14 +998,15 @@ export default function RegistrarPage() {
 
       {/* ── Transferência entre contas ── */}
       {!isListening && !isProcessing && (
-        <div className="mt-4">
+        <div className="mt-4 flex items-center gap-2">
           <button
             onClick={() => setStep('transfer')}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50 transition-all text-sm font-medium"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50 transition-all text-sm font-medium"
           >
             <ArrowLeftRight className="w-4 h-4" />
             Transferir entre Empresa e Pessoal
           </button>
+          <HelpTooltip id="registrar.transfer" />
         </div>
       )}
 
@@ -995,20 +1016,27 @@ export default function RegistrarPage() {
   )
 }
 
-function EditButton({ label, value, onClick, color }: {
-  label: string; value: string; onClick: () => void; color?: 'income' | 'expense'
+function EditButton({ label, value, onClick, color, helpId }: {
+  label: string; value: string; onClick: () => void; color?: 'income' | 'expense'; helpId?: string
 }) {
   return (
-    <button onClick={onClick}
-      className={cn('flex flex-col items-start px-4 py-3 rounded-2xl border-2 transition-all active:scale-[0.97] text-left',
-        color === 'income' ? 'border-income-200 bg-income-50 hover:border-income-400'
-        : color === 'expense' ? 'border-expense-200 bg-expense-50 hover:border-expense-400'
-        : 'border-slate-200 bg-white hover:border-primary-300 hover:bg-primary-50')}>
-      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
-      <span className={cn('text-sm font-bold mt-0.5 truncate w-full',
-        color === 'income' ? 'text-income-600' : color === 'expense' ? 'text-expense-600' : 'text-slate-800')}>
-        {value}
-      </span>
-    </button>
+    <div className="relative">
+      <button onClick={onClick}
+        className={cn('w-full flex flex-col items-start px-4 py-3 rounded-2xl border-2 transition-all active:scale-[0.97] text-left',
+          color === 'income' ? 'border-income-200 bg-income-50 hover:border-income-400'
+          : color === 'expense' ? 'border-expense-200 bg-expense-50 hover:border-expense-400'
+          : 'border-slate-200 bg-white hover:border-primary-300 hover:bg-primary-50')}>
+        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
+        <span className={cn('text-sm font-bold mt-0.5 truncate w-full',
+          color === 'income' ? 'text-income-600' : color === 'expense' ? 'text-expense-600' : 'text-slate-800')}>
+          {value}
+        </span>
+      </button>
+      {helpId && (
+        <div className="absolute top-2 right-2">
+          <HelpTooltip id={helpId} size="sm" />
+        </div>
+      )}
+    </div>
   )
 }

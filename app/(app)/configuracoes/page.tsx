@@ -10,6 +10,10 @@ import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Mode, ProfilePermissions } from '@/types'
 import { DEFAULT_MEMBER_PERMISSIONS } from '@/types'
+import HelpTooltip from '@/components/shared/HelpTooltip'
+import ErrorBanner from '@/components/shared/ErrorBanner'
+import { formatError } from '@/lib/errors'
+import type { ErrorCode } from '@/lib/errors'
 
 const PROFILE_COLORS = [
   'from-primary-500 to-indigo-600',
@@ -63,7 +67,7 @@ export default function ConfiguracoesPage() {
     typeof window !== 'undefined' ? localStorage.getItem(SYSTEM_PIN_KEY) ?? '' : ''
   )
   const [securitySaved, setSecuritySaved] = useState<string | null>(null)
-  const [dbError, setDbError] = useState<string | null>(null)
+  const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
   const [saving, setSaving] = useState(false)
 
   const activeProfile = profiles.find(p => p.id === activeProfileId)
@@ -76,7 +80,7 @@ export default function ConfiguracoesPage() {
     const name = newProfileName.trim()
     if (!name) return
     setSaving(true)
-    setDbError(null)
+    setAppError(null)
     try {
       await addProfile({
         id: Date.now().toString(),
@@ -90,8 +94,8 @@ export default function ConfiguracoesPage() {
       setNewProfileName('')
       setNewProfileColor(PROFILE_COLORS[1])
       setShowAddProfile(false)
-    } catch {
-      setDbError('Erro ao salvar. Tente novamente.')
+    } catch (err) {
+      setAppError(formatError(err))
     } finally {
       setSaving(false)
     }
@@ -125,12 +129,12 @@ export default function ConfiguracoesPage() {
     const name = newCat.trim()
     if (!name) return
     setSaving(true)
-    setDbError(null)
+    setAppError(null)
     try {
       await addCategory(name, catMode, newDirection)
       setNewCat('')
-    } catch {
-      setDbError('Erro ao salvar. Tente novamente.')
+    } catch (err) {
+      setAppError(formatError(err))
     } finally {
       setSaving(false)
     }
@@ -161,7 +165,10 @@ export default function ConfiguracoesPage() {
             <Lock className="w-4 h-4 text-amber-500" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-700">Acesso limitado</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-semibold text-slate-700">Acesso limitado</p>
+              <HelpTooltip id="config.access-limited" />
+            </div>
             <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
               Apenas o perfil principal pode alterar configurações do sistema. Troque para o perfil principal para ter acesso completo.
             </p>
@@ -207,17 +214,15 @@ export default function ConfiguracoesPage() {
       </div>
 
       {/* DB error banner */}
-      {dbError && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-expense-50 border border-expense-200 rounded-xl">
-          <p className="flex-1 text-sm font-semibold text-expense-700">{dbError}</p>
-          <button
-            onClick={() => setDbError(null)}
-            className="w-6 h-6 flex items-center justify-center rounded-full text-expense-400 hover:text-expense-600 hover:bg-expense-100 transition-colors shrink-0"
-            aria-label="Fechar"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      {appError && (
+        <ErrorBanner
+          title={appError.title}
+          description={appError.description}
+          action={appError.action}
+          code={appError.code}
+          severity={appError.severity}
+          onClose={() => setAppError(null)}
+        />
       )}
 
       {/* Active profile card */}
@@ -238,7 +243,10 @@ export default function ConfiguracoesPage() {
       {/* ── Perfis ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Perfis</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Perfis</p>
+            <HelpTooltip id="config.profiles" />
+          </div>
           <button onClick={() => setShowAddProfile(!showAddProfile)}
             className="flex items-center gap-1 px-2.5 py-1.5 bg-primary-50 text-primary-600 rounded-xl text-xs font-semibold hover:bg-primary-100 transition-colors">
             <Plus className="w-3 h-3" /> Adicionar
@@ -264,26 +272,32 @@ export default function ConfiguracoesPage() {
                   </p>
                 </div>
                 {/* Botão de PIN */}
-                <button
-                  onClick={() => { setPinEditId(pinEditId === profile.id ? null : profile.id); setPinEditValue(''); setPermEditId(null) }}
-                  className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0',
-                    profile.pin ? 'text-slate-600 bg-slate-100 hover:bg-slate-200' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'
-                  )}
-                  title={profile.pin ? 'PIN configurado — clique para editar' : 'Clique para definir um PIN'}
-                >
-                  {profile.pin ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
-                </button>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => { setPinEditId(pinEditId === profile.id ? null : profile.id); setPinEditValue(''); setPermEditId(null) }}
+                    className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
+                      profile.pin ? 'text-slate-600 bg-slate-100 hover:bg-slate-200' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'
+                    )}
+                    title={profile.pin ? 'PIN configurado — clique para editar' : 'Clique para definir um PIN'}
+                  >
+                    {profile.pin ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
+                  </button>
+                  <HelpTooltip id="config.profile-pin" />
+                </div>
                 {/* Botão de Permissões (somente perfis não-donos) */}
                 {!profile.isOwner && (
-                  <button
-                    onClick={() => { setPermEditId(permEditId === profile.id ? null : profile.id); setPinEditId(null) }}
-                    className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0',
-                      permEditId === profile.id ? 'text-primary-600 bg-primary-100' : 'text-slate-400 hover:text-primary-500 hover:bg-primary-50'
-                    )}
-                    title="Configurar permissões"
-                  >
-                    <Settings2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() => { setPermEditId(permEditId === profile.id ? null : profile.id); setPinEditId(null) }}
+                      className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
+                        permEditId === profile.id ? 'text-primary-600 bg-primary-100' : 'text-slate-400 hover:text-primary-500 hover:bg-primary-50'
+                      )}
+                      title="Configurar permissões"
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                    </button>
+                    <HelpTooltip id="config.profile-permissions" />
+                  </div>
                 )}
                 {!profile.isOwner && (
                   removingProfile === profile.id ? (
@@ -292,12 +306,12 @@ export default function ConfiguracoesPage() {
                         disabled={saving}
                         onClick={async () => {
                           setSaving(true)
-                          setDbError(null)
+                          setAppError(null)
                           try {
                             await removeProfile(profile.id)
                             setRemovingProfile(null)
-                          } catch {
-                            setDbError('Erro ao salvar. Tente novamente.')
+                          } catch (err) {
+                            setAppError(formatError(err))
                           } finally {
                             setSaving(false)
                           }
@@ -323,12 +337,12 @@ export default function ConfiguracoesPage() {
                   saving={saving}
                   onSave={async (perms) => {
                     setSaving(true)
-                    setDbError(null)
+                    setAppError(null)
                     try {
                       await updateProfile(profile.id, { permissions: perms })
                       setPermEditId(null)
-                    } catch {
-                      setDbError('Erro ao salvar permissões. Tente novamente.')
+                    } catch (err) {
+                      setAppError(formatError(err))
                     } finally {
                       setSaving(false)
                     }
@@ -356,13 +370,13 @@ export default function ConfiguracoesPage() {
                     onClick={async () => {
                       if (pinEditValue.length !== 4) return
                       setSaving(true)
-                      setDbError(null)
+                      setAppError(null)
                       try {
                         await updateProfile(profile.id, { pin: pinEditValue })
                         setPinEditId(null)
                         setPinEditValue('')
-                      } catch {
-                        setDbError('Erro ao salvar. Tente novamente.')
+                      } catch (err) {
+                        setAppError(formatError(err))
                       } finally {
                         setSaving(false)
                       }
@@ -376,12 +390,12 @@ export default function ConfiguracoesPage() {
                       disabled={saving}
                       onClick={async () => {
                         setSaving(true)
-                        setDbError(null)
+                        setAppError(null)
                         try {
                           await updateProfile(profile.id, { pin: undefined })
                           setPinEditId(null)
-                        } catch {
-                          setDbError('Erro ao salvar. Tente novamente.')
+                        } catch (err) {
+                          setAppError(formatError(err))
                         } finally {
                           setSaving(false)
                         }
@@ -435,7 +449,10 @@ export default function ConfiguracoesPage() {
       {/* ── Categorias ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Categorias</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Categorias</p>
+            <HelpTooltip id="config.categories" />
+          </div>
           <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
             <button
               onClick={() => setCatMode('business')}
@@ -475,7 +492,10 @@ export default function ConfiguracoesPage() {
             </div>
             {/* Direction toggle */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-medium shrink-0">Usar para:</span>
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="text-xs text-slate-400 font-medium">Usar para:</span>
+                <HelpTooltip id="config.category-direction" />
+              </div>
               <div className="flex gap-1.5 flex-1">
                 {DIRECTION_OPTIONS.map(opt => (
                   <button
@@ -515,12 +535,12 @@ export default function ConfiguracoesPage() {
                         disabled={saving}
                         onClick={async () => {
                           setSaving(true)
-                          setDbError(null)
+                          setAppError(null)
                           try {
                             await removeCategory(cat.name, catMode)
                             setRemovingCat(null)
-                          } catch {
-                            setDbError('Erro ao salvar. Tente novamente.')
+                          } catch (err) {
+                            setAppError(formatError(err))
                           } finally {
                             setSaving(false)
                           }

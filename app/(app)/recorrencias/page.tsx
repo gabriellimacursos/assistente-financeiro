@@ -8,6 +8,10 @@ import {
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import { formatCurrency, formatShortDate, formatDateInput, RECURRENCE_LABELS, cn } from '@/lib/utils'
 import type { Recurrence, RecurrenceFrequency, Mode } from '@/types'
+import HelpTooltip from '@/components/shared/HelpTooltip'
+import ErrorBanner from '@/components/shared/ErrorBanner'
+import { formatError } from '@/lib/errors'
+import type { ErrorCode } from '@/lib/errors'
 
 type ModalMode = 'create' | 'edit' | null
 
@@ -52,8 +56,7 @@ export default function RecorrenciasPage() {
   const [form, setForm] = useState<Omit<Recurrence, 'id' | 'created_at'>>(emptyRecurrence(activeMode))
   const [amountStr, setAmountStr] = useState('')
   const [saving, setSaving] = useState(false)
-  const [dbError, setDbError] = useState<string | null>(null)
-  const [cardError, setCardError] = useState<string | null>(null)
+  const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
 
   function openCreate() {
     const base = emptyRecurrence(activeMode)
@@ -77,7 +80,7 @@ export default function RecorrenciasPage() {
   function closeModal() {
     setModalMode(null)
     setEditing(null)
-    setDbError(null)
+    setAppError(null)
   }
 
   async function handleSave() {
@@ -87,7 +90,7 @@ export default function RecorrenciasPage() {
     const data = { ...form, amount }
 
     setSaving(true)
-    setDbError(null)
+    setAppError(null)
     try {
       if (modalMode === 'edit' && editing) {
         await updateRecurrence(editing.id, data)
@@ -100,8 +103,8 @@ export default function RecorrenciasPage() {
         })
       }
       closeModal()
-    } catch {
-      setDbError('Erro ao salvar. Tente novamente.')
+    } catch (err) {
+      setAppError(formatError(err))
     } finally {
       setSaving(false)
     }
@@ -122,7 +125,10 @@ export default function RecorrenciasPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Recorrências</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-bold text-slate-800">Recorrências</h1>
+            <HelpTooltip id="recorrencias.what" />
+          </div>
           <p className="text-slate-500 text-sm">Pagamentos e recebimentos fixos</p>
         </div>
         {canManage && (
@@ -139,21 +145,31 @@ export default function RecorrenciasPage() {
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3">
         <div className="card p-4">
-          <p className="text-xs text-slate-400 font-medium mb-1">Entradas fixas/mês</p>
+          <div className="flex items-center gap-1 mb-1">
+            <p className="text-xs text-slate-400 font-medium">Entradas fixas/mês</p>
+            <HelpTooltip id="recorrencias.monthly-total" />
+          </div>
           <p className="text-xl font-bold text-income-500">{formatCurrency(totalMonthlyIncome)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-slate-400 font-medium mb-1">Saídas fixas/mês</p>
+          <div className="flex items-center gap-1 mb-1">
+            <p className="text-xs text-slate-400 font-medium">Saídas fixas/mês</p>
+            <HelpTooltip id="recorrencias.monthly-total" />
+          </div>
           <p className="text-xl font-bold text-expense-500">{formatCurrency(totalMonthlyExpense)}</p>
         </div>
       </div>
 
       {/* Card-level error */}
-      {cardError && (
-        <div className="flex items-center justify-between bg-expense-50 border border-expense-200 text-expense-700 text-sm rounded-2xl px-4 py-3">
-          <span>{cardError}</span>
-          <button onClick={() => setCardError(null)} className="ml-3 text-expense-500 hover:text-expense-700 font-bold">✕</button>
-        </div>
+      {appError && (
+        <ErrorBanner
+          title={appError.title}
+          description={appError.description}
+          action={appError.action}
+          code={appError.code}
+          severity={appError.severity}
+          onClose={() => setAppError(null)}
+        />
       )}
 
       {/* Active */}
@@ -164,10 +180,10 @@ export default function RecorrenciasPage() {
             {active.map(r => (
               <RecurrenceCard key={r.id} recurrence={r}
                 onEdit={() => openEdit(r)}
-                onToggle={async () => { try { await toggleRecurrence(r.id) } catch { setCardError('Erro ao alterar recorrência. Tente novamente.') } }}
+                onToggle={async () => { try { await toggleRecurrence(r.id) } catch (err) { setAppError(formatError(err)) } }}
                 onDelete={() => setConfirmDelete(r.id)}
                 confirmDelete={confirmDelete === r.id}
-                onConfirmDelete={async () => { try { await removeRecurrence(r.id); setConfirmDelete(null) } catch { setCardError('Erro ao remover. Tente novamente.') } }}
+                onConfirmDelete={async () => { try { await removeRecurrence(r.id); setConfirmDelete(null) } catch (err) { setAppError(formatError(err)) } }}
                 onCancelDelete={() => setConfirmDelete(null)}
                 canManage={canManage}
               />
@@ -184,10 +200,10 @@ export default function RecorrenciasPage() {
             {paused.map(r => (
               <RecurrenceCard key={r.id} recurrence={r}
                 onEdit={() => openEdit(r)}
-                onToggle={async () => { try { await toggleRecurrence(r.id) } catch { setCardError('Erro ao alterar recorrência. Tente novamente.') } }}
+                onToggle={async () => { try { await toggleRecurrence(r.id) } catch (err) { setAppError(formatError(err)) } }}
                 onDelete={() => setConfirmDelete(r.id)}
                 confirmDelete={confirmDelete === r.id}
-                onConfirmDelete={async () => { try { await removeRecurrence(r.id); setConfirmDelete(null) } catch { setCardError('Erro ao remover. Tente novamente.') } }}
+                onConfirmDelete={async () => { try { await removeRecurrence(r.id); setConfirmDelete(null) } catch (err) { setAppError(formatError(err)) } }}
                 onCancelDelete={() => setConfirmDelete(null)}
                 canManage={canManage}
               />
@@ -298,7 +314,10 @@ export default function RecorrenciasPage() {
 
             {/* Frequência */}
             <div>
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Frequência</label>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Frequência</label>
+                <HelpTooltip id="recorrencias.frequency" />
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {RECURRENCE_FREQ.map(f => (
                   <button key={f.value} onClick={() => setForm(fm => ({ ...fm, frequency: f.value }))}
@@ -326,18 +345,25 @@ export default function RecorrenciasPage() {
 
             {/* Próxima data */}
             <div>
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Próxima data</label>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Próxima data</label>
+                <HelpTooltip id="recorrencias.next-date" />
+              </div>
               <input type="date" value={form.next_date}
                 onChange={e => setForm(f => ({ ...f, next_date: e.target.value }))}
                 className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 bg-white text-sm font-semibold outline-none focus:border-primary-400 transition-all" />
             </div>
 
             {/* DB error */}
-            {dbError && (
-              <div className="flex items-center justify-between bg-expense-50 border border-expense-200 text-expense-700 text-sm rounded-2xl px-4 py-3">
-                <span>{dbError}</span>
-                <button onClick={() => setDbError(null)} className="ml-3 text-expense-500 hover:text-expense-700 font-bold">✕</button>
-              </div>
+            {appError && (
+              <ErrorBanner
+                title={appError.title}
+                description={appError.description}
+                action={appError.action}
+                code={appError.code}
+                severity={appError.severity}
+                onClose={() => setAppError(null)}
+              />
             )}
 
             {/* Save */}
@@ -406,10 +432,13 @@ function RecurrenceCard({ recurrence: r, onEdit, onToggle, onDelete, confirmDele
             className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-primary-50 transition-colors text-slate-400 hover:text-primary-500 text-xs font-bold">
             ✎
           </button>
-          <button onClick={onToggle}
-            className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-primary-50 transition-colors">
-            {r.active ? <Pause className="w-4 h-4 text-slate-500" /> : <Play className="w-4 h-4 text-primary-500" />}
-          </button>
+          <div className="relative">
+            <button onClick={onToggle}
+              className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-primary-50 transition-colors">
+              {r.active ? <Pause className="w-4 h-4 text-slate-500" /> : <Play className="w-4 h-4 text-primary-500" />}
+            </button>
+            <span className="absolute -top-1 -right-1"><HelpTooltip id="recorrencias.toggle" /></span>
+          </div>
           <button onClick={onDelete}
             className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-expense-50 transition-colors">
             <Trash2 className="w-4 h-4 text-slate-400 hover:text-expense-400" />

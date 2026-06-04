@@ -7,6 +7,10 @@ import {
 import { useRouter } from 'next/navigation'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import ModeToggle from '@/components/shared/ModeToggle'
+import HelpTooltip from '@/components/shared/HelpTooltip'
+import ErrorBanner from '@/components/shared/ErrorBanner'
+import { formatError } from '@/lib/errors'
+import type { ErrorCode } from '@/lib/errors'
 import { formatCurrency, formatDate, formatTime, cn } from '@/lib/utils'
 import { parseISO, format, startOfMonth, endOfMonth, subMonths, endOfDay, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -109,14 +113,19 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
         <div className="px-5 pb-8 space-y-5">
           {/* Header */}
           <div className="flex items-center justify-between pt-1">
-            <h2 className="text-lg font-bold text-slate-800">{canEdit ? 'Editar lançamento' : 'Visualizar lançamento'}</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-lg font-bold text-slate-800">{canEdit ? 'Editar lançamento' : 'Visualizar lançamento'}</h2>
+              <HelpTooltip id="timeline.edit-modal" />
+            </div>
             <div className="flex items-center gap-2">
               {canDelete && (
                 <button onClick={() => setConfirmDel(true)} disabled={saving || deleting}
-                  className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center hover:bg-expense-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center hover:bg-expense-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Excluir lançamento">
                   <Trash2 className="w-4 h-4 text-expense-500" />
                 </button>
               )}
+              <HelpTooltip id="timeline.delete" />
               <button onClick={onClose} disabled={saving || deleting} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
                 <X className="w-5 h-5 text-slate-500" />
               </button>
@@ -285,7 +294,7 @@ export default function TimelinePage() {
   const [showCustom, setShowCustom]         = useState(false)
   const [editingTx, setEditingTx]           = useState<Transaction | null>(null)
   const [searchQuery, setSearchQuery]       = useState('')
-  const [dbError, setDbError]               = useState<string | null>(null)
+  const [appError, setAppError]             = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [showCategoryFilter, setShowCategoryFilter] = useState(false)
 
@@ -374,7 +383,10 @@ export default function TimelinePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Histórico</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-bold text-slate-800">Histórico</h1>
+            <HelpTooltip id="timeline.summary" />
+          </div>
           <p className="text-slate-500 text-sm">
             {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
             {activeFilterCount > 0 && <span className="ml-1.5 text-primary-500 font-semibold">· {activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''} ativo{activeFilterCount > 1 ? 's' : ''}</span>}
@@ -386,16 +398,25 @@ export default function TimelinePage() {
       {/* Summary */}
       <div className={cn('grid gap-1.5', totalPending > 0 ? 'grid-cols-2' : 'grid-cols-3')}>
         <div className="card p-3">
-          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Entradas</p>
+          <div className="flex items-center gap-1 mb-0.5">
+            <p className="text-[10px] text-slate-400 font-semibold">Entradas</p>
+            <HelpTooltip id="dashboard.income" />
+          </div>
           <p className="text-xs sm:text-sm font-bold text-income-500 truncate">{formatCurrency(totalIncome)}</p>
         </div>
         <div className="card p-3">
-          <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Saídas</p>
+          <div className="flex items-center gap-1 mb-0.5">
+            <p className="text-[10px] text-slate-400 font-semibold">Saídas</p>
+            <HelpTooltip id="dashboard.expense" />
+          </div>
           <p className="text-xs sm:text-sm font-bold text-expense-500 truncate">{formatCurrency(totalExpense)}</p>
         </div>
         {totalPending > 0 ? (
           <div className="card p-3 border-2 border-amber-200 bg-amber-50">
-            <p className="text-[10px] text-amber-500 font-semibold mb-0.5">A pagar</p>
+            <div className="flex items-center gap-1 mb-0.5">
+              <p className="text-[10px] text-amber-500 font-semibold">A pagar</p>
+              <HelpTooltip id="dashboard.pending" />
+            </div>
             <p className="text-xs sm:text-sm font-bold text-amber-600 truncate">{formatCurrency(totalPending)}</p>
           </div>
         ) : (
@@ -439,22 +460,26 @@ export default function TimelinePage() {
         {/* Linha 1: Tipo + Período + Limpar */}
         <div className="flex gap-2 flex-wrap items-center">
           {/* Tipo */}
-          <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
-            {[
-              { value: 'all',     label: 'Todos' },
-              { value: 'income',  label: '↑ Entrada' },
-              { value: 'expense', label: '↓ Saída' },
-            ].map(f => (
-              <button key={f.value} onClick={() => setTypeFilter(f.value as FilterType)}
-                className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
-                  typeFilter === f.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
-                {f.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5">
+            <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
+              {[
+                { value: 'all',     label: 'Todos' },
+                { value: 'income',  label: '↑ Entrada' },
+                { value: 'expense', label: '↓ Saída' },
+              ].map(f => (
+                <button key={f.value} onClick={() => setTypeFilter(f.value as FilterType)}
+                  className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
+                    typeFilter === f.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <HelpTooltip id="timeline.filter-type" />
           </div>
 
           {/* Período */}
-          <div className="relative flex-1 min-w-[130px]">
+          <div className="flex items-center gap-1.5 flex-1 min-w-[130px]">
+          <div className="relative flex-1 min-w-0">
             <button onClick={() => { setShowPeriodPicker(!showPeriodPicker); setShowCustom(false) }}
               className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors">
               <div className="flex items-center gap-1.5 min-w-0">
@@ -480,6 +505,8 @@ export default function TimelinePage() {
                 </button>
               </div>
             )}
+          </div>
+          <HelpTooltip id="timeline.filter-period" />
           </div>
 
           {/* Limpar filtros */}
@@ -525,6 +552,7 @@ export default function TimelinePage() {
                 ? `${selectedCategories.size} categoria${selectedCategories.size > 1 ? 's' : ''} selecionada${selectedCategories.size > 1 ? 's' : ''}`
                 : 'Filtrar por categoria'}
             </span>
+            <HelpTooltip id="timeline.filter-category" />
             <ChevronDown className={cn('w-3.5 h-3.5 transition-transform shrink-0', showCategoryFilter && 'rotate-180')} />
           </button>
 
@@ -549,14 +577,16 @@ export default function TimelinePage() {
         </div>
       </div>
 
-      {/* DB error banner */}
-      {dbError && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-expense-50 border-2 border-expense-200 rounded-2xl text-expense-700 text-sm font-semibold">
-          <span>{dbError}</span>
-          <button onClick={() => setDbError(null)} className="shrink-0 w-6 h-6 flex items-center justify-center hover:bg-expense-100 rounded-lg transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      {/* Error banner */}
+      {appError && (
+        <ErrorBanner
+          title={appError.title}
+          description={appError.description}
+          action={appError.action}
+          code={appError.code}
+          severity={appError.severity}
+          onClose={() => setAppError(null)}
+        />
       )}
 
       {/* Timeline */}
@@ -639,16 +669,16 @@ export default function TimelinePage() {
             try {
               await updateTransaction(editingTx.id, data)
               setEditingTx(null)
-            } catch {
-              setDbError('Erro ao salvar. Tente novamente.')
+            } catch (err) {
+              setAppError(formatError(err))
             }
           }}
           onDelete={async () => {
             try {
               await removeTransaction(editingTx.id)
               setEditingTx(null)
-            } catch {
-              setDbError('Erro ao excluir. Tente novamente.')
+            } catch (err) {
+              setAppError(formatError(err))
             }
           }}
           categoriesPersonal={categoriesPersonal}
