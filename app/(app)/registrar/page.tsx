@@ -44,6 +44,7 @@ export default function RegistrarPage() {
   const [newCatInput, setNewCatInput] = useState('')
   const [newCatDirection, setNewCatDirection] = useState<'income' | 'expense' | 'both'>('both')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Sugestões inteligentes baseadas no histórico
@@ -177,38 +178,43 @@ export default function RegistrarPage() {
     setEditField(null)
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!interpretation) return
+    setSaveError(null)
     const description = interpretation.description.trim() || pendingText.trim() || interpretation.category
-    addTransaction({
-      id: Date.now().toString(),
-      type: interpretation.type,
-      mode: interpretation.mode,
-      amount: interpretation.amount,
-      category: interpretation.category,
-      description,
-      original_text: pendingText,
-      date: selectedDate + 'T' + new Date().toTimeString().slice(0, 8),
-      is_recurring: recurrenceChoice !== null && recurrenceChoice !== 'none',
-      card_id: selectedCardId || undefined,
-      profile_id: activeProfileId,
-      profile_name: activeProfile?.name,
-      status: 'confirmed',
-      created_at: new Date().toISOString(),
-    })
-    setStep('saved')
-    setTimeout(() => {
-      voice.reset()
-      setStep('idle')
-      setInterpretation(null)
-      setPendingText('')
-      setRecurrenceChoice(null)
-      setEditField(null)
-      setTextInput('')
-      setSelectedDate(formatDateInput())
-      setSelectedCardId(null)
-      inputRef.current?.focus()
-    }, 1600)
+    try {
+      await addTransaction({
+        id: Date.now().toString(),
+        type: interpretation.type,
+        mode: interpretation.mode,
+        amount: interpretation.amount,
+        category: interpretation.category,
+        description,
+        original_text: pendingText,
+        date: selectedDate + 'T' + new Date().toTimeString().slice(0, 8),
+        is_recurring: recurrenceChoice !== null && recurrenceChoice !== 'none',
+        card_id: selectedCardId || undefined,
+        profile_id: activeProfileId,
+        profile_name: activeProfile?.name,
+        status: 'confirmed',
+        created_at: new Date().toISOString(),
+      })
+      setStep('saved')
+      setTimeout(() => {
+        voice.reset()
+        setStep('idle')
+        setInterpretation(null)
+        setPendingText('')
+        setRecurrenceChoice(null)
+        setEditField(null)
+        setTextInput('')
+        setSelectedDate(formatDateInput())
+        setSelectedCardId(null)
+        inputRef.current?.focus()
+      }, 1600)
+    } catch {
+      setSaveError('Falha ao salvar. Verifique sua conexão e tente novamente.')
+    }
   }
 
   function handleTransferConfirm() {
@@ -303,7 +309,7 @@ export default function RegistrarPage() {
           <div className="w-12 h-12 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
             <RefreshCw className="w-6 h-6 text-primary-500" />
           </div>
-          <h2 className="text-xl font-bold text-slate-800">Esse gasto se repete?</h2>
+          <h2 className="text-xl font-bold text-slate-800">Esse lançamento se repete?</h2>
           <p className="text-slate-400 text-sm mt-1">Vou lembrar automaticamente</p>
         </div>
         <div className="space-y-2">
@@ -532,6 +538,11 @@ export default function RegistrarPage() {
 
         {/* Confirm */}
         <div className="space-y-2 pt-1">
+          {saveError && (
+            <div className="bg-expense-50 border border-expense-200 rounded-2xl px-4 py-3">
+              <p className="text-expense-700 text-sm font-medium">{saveError}</p>
+            </div>
+          )}
           <button onClick={handleConfirm} className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4">
             <Check className="w-5 h-5" /> Confirmar
           </button>

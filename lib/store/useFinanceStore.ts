@@ -69,7 +69,7 @@ interface FinanceStore {
   setActiveProfileId: (id: string) => void
   initializeCloud: (userId: string) => Promise<void>
   clearCloudSession: () => void
-  addTransaction: (t: Transaction) => void
+  addTransaction: (t: Transaction) => Promise<void>
   removeTransaction: (id: string) => void
   updateTransaction: (id: string, data: Partial<Transaction>) => void
   addProfile: (p: UserProfile) => void
@@ -371,13 +371,19 @@ export const useFinanceStore = create<FinanceStore>()(
 
       clearCloudSession: () => set({ cloudUserId: null, syncStatus: 'idle', syncError: null, isAdmin: false, userStatus: null }),
 
-      addTransaction: (t) =>
-        set((state) => {
-          const userId = state.cloudUserId
-          const item = { ...t, id: ensureUuid(t.id), user_id: userId ?? t.user_id }
-          if (userId) supabase.from('transactions').upsert(transactionToDb(item, userId)).then(({ error }) => error && console.error(error))
-          return { transactions: [item, ...state.transactions] }
-        }),
+      addTransaction: async (t) => {
+        const { cloudUserId } = get()
+        const userId = cloudUserId
+        const item = { ...t, id: ensureUuid(t.id), user_id: userId ?? t.user_id }
+        set((state) => ({ transactions: [item, ...state.transactions] }))
+        if (userId) {
+          const { error } = await supabase.from('transactions').upsert(transactionToDb(item, userId))
+          if (error) {
+            set((state) => ({ transactions: state.transactions.filter(tr => tr.id !== item.id) }))
+            throw error
+          }
+        }
+      },
 
       removeTransaction: (id) =>
         set((state) => {
