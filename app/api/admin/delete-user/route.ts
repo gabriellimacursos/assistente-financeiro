@@ -8,17 +8,26 @@ export async function POST(req: NextRequest) {
   }
   const token = authHeader.replace('Bearer ', '')
 
-  const supabase = createClient(
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) {
+    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY não configurada no servidor' }, { status: 503 })
+  }
+
+  // Usa service role para tudo — bypassa RLS e garante que a verificação de admin funcione
+  const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+  // Valida o token do chamador
+  const { data: { user }, error: authError } = await adminClient.auth.getUser(token)
   if (authError || !user) {
     return NextResponse.json({ error: 'Sessão inválida' }, { status: 401 })
   }
 
-  const { data: registry } = await supabase
+  // Verifica se o chamador é admin (service role bypassa RLS)
+  const { data: registry } = await adminClient
     .from('user_registry')
     .select('is_admin')
     .eq('user_id', user.id)
@@ -37,17 +46,6 @@ export async function POST(req: NextRequest) {
   if (userId === user.id) {
     return NextResponse.json({ error: 'Não é possível deletar a própria conta' }, { status: 400 })
   }
-
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!serviceRoleKey) {
-    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY não configurada no servidor' }, { status: 503 })
-  }
-
-  const adminClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
 
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId)
   if (deleteError) {
