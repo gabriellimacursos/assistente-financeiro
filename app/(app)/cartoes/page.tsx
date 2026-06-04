@@ -32,6 +32,8 @@ export default function CartoesPage() {
   const [form, setForm] = useState<Omit<CC, 'id' | 'created_at'>>(emptyCard(activeMode))
   const [limitStr, setLimitStr] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [dbError, setDbError] = useState<string | null>(null)
 
   const now = new Date()
 
@@ -70,16 +72,24 @@ export default function CartoesPage() {
     setShowModal(true)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim()) return
+    setSaving(true)
+    setDbError(null)
     const limit = limitStr ? parseFloat(limitStr) : undefined
     const data = { ...form, limit, lastDigits: form.lastDigits.slice(-4) }
-    if (editingCard) {
-      updateCard(editingCard.id, data)
-    } else {
-      addCard({ ...data, id: Date.now().toString(), created_at: new Date().toISOString() })
+    try {
+      if (editingCard) {
+        await updateCard(editingCard.id, data)
+      } else {
+        await addCard({ ...data, id: '', active: true, created_at: new Date().toISOString() })
+      }
+      setShowModal(false)
+    } catch {
+      setDbError('Erro ao salvar cartão. Tente novamente.')
+    } finally {
+      setSaving(false)
     }
-    setShowModal(false)
   }
 
   // ── Card detail view ──────────────────────────────────────────────────────
@@ -296,8 +306,22 @@ export default function CartoesPage() {
                   </button>
                   {confirmDelete === card.id ? (
                     <>
-                      <button onClick={e => { e.stopPropagation(); removeCard(card.id); setConfirmDelete(null) }}
-                        className="w-8 h-8 bg-expense-500 rounded-lg flex items-center justify-center">
+                      <button onClick={async e => {
+                        e.stopPropagation()
+                        setSaving(true)
+                        setDbError(null)
+                        try {
+                          await removeCard(card.id)
+                          setConfirmDelete(null)
+                        } catch {
+                          setDbError('Erro ao remover cartão. Tente novamente.')
+                          setConfirmDelete(null)
+                        } finally {
+                          setSaving(false)
+                        }
+                      }}
+                        disabled={saving}
+                        className="w-8 h-8 bg-expense-500 rounded-lg flex items-center justify-center disabled:opacity-60">
                         <Check className="w-3.5 h-3.5 text-white" />
                       </button>
                       <button onClick={e => { e.stopPropagation(); setConfirmDelete(null) }}
@@ -329,7 +353,7 @@ export default function CartoesPage() {
       {/* ── Modal add/edit card ── */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 z-[60] flex items-end lg:items-center lg:justify-center" onClick={() => setShowModal(false)}>
-          <div className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl p-6 pb-28 lg:pb-6 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-lg mx-auto lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl p-6 pb-28 lg:pb-6 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800">{editingCard ? 'Editar cartão' : 'Novo cartão'}</h2>
               <button onClick={() => setShowModal(false)} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center">
@@ -415,10 +439,19 @@ export default function CartoesPage() {
               </div>
             </div>
 
-            <button onClick={handleSave} disabled={!form.name.trim()}
-              className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4">
+            {dbError && (
+              <div className="flex items-center justify-between gap-2 bg-expense-50 border border-expense-200 text-expense-700 text-sm rounded-2xl px-4 py-3">
+                <span>{dbError}</span>
+                <button onClick={() => setDbError(null)} className="shrink-0 text-expense-500 hover:text-expense-700">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <button onClick={handleSave} disabled={!form.name.trim() || saving}
+              className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4 disabled:opacity-60">
               <Check className="w-5 h-5" />
-              {editingCard ? 'Salvar alterações' : 'Criar cartão'}
+              {saving ? 'Salvando...' : editingCard ? 'Salvar alterações' : 'Criar cartão'}
             </button>
           </div>
         </div>

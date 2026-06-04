@@ -76,6 +76,7 @@ export default function DashboardPage() {
   const [anchor, setAnchor] = useState<Date>(new Date())
   const [confirmPayCard, setConfirmPayCard] = useState<{ card: CC; total: number; txIds: string[]; dueDate: Date; daysUntilDue: number } | null>(null)
   const [paidAlerts, setPaidAlerts] = useState<Set<string>>(new Set())
+  const [payError, setPayError] = useState<string | null>(null)
 
   const filtered = useMemo(() =>
     transactions.filter(t => viewMode === 'all' || t.mode === viewMode),
@@ -236,10 +237,15 @@ export default function DashboardPage() {
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
   }, [cards, filtered, paidAlerts])
 
-  function handleMarkAsPaid(txIds: string[], cardId: string) {
-    for (const id of txIds) updateTransaction(id, { status: 'confirmed' })
-    setPaidAlerts(prev => { const s = new Set(prev); s.add(cardId); return s })
-    setConfirmPayCard(null)
+  async function handleMarkAsPaid(txIds: string[], cardId: string) {
+    setPayError(null)
+    try {
+      await Promise.all(txIds.map(id => updateTransaction(id, { status: 'confirmed' })))
+      setPaidAlerts(prev => { const s = new Set(prev); s.add(cardId); return s })
+      setConfirmPayCard(null)
+    } catch {
+      setPayError('Erro ao confirmar pagamento. Tente novamente.')
+    }
   }
 
   const recentTx = useMemo(() =>
@@ -549,6 +555,9 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-400 mt-1">{confirmPayCard.txIds.length} lançamento{confirmPayCard.txIds.length > 1 ? 's' : ''}</p>
             </div>
 
+            {payError && (
+              <p className="text-xs text-expense-600 bg-expense-50 border border-expense-200 rounded-xl px-3 py-2 text-center">{payError}</p>
+            )}
             <div className="space-y-2">
               <button
                 onClick={() => handleMarkAsPaid(confirmPayCard.txIds, confirmPayCard.card.id)}
@@ -557,7 +566,7 @@ export default function DashboardPage() {
                 <CheckCircle className="w-5 h-5" /> Paguei tudo — {formatCurrency(confirmPayCard.total)}
               </button>
               <button
-                onClick={() => setConfirmPayCard(null)}
+                onClick={() => { setConfirmPayCard(null); setPayError(null) }}
                 className="w-full bg-slate-100 text-slate-600 font-semibold py-3 rounded-2xl text-sm hover:bg-slate-200 transition-colors"
               >
                 Ainda não paguei

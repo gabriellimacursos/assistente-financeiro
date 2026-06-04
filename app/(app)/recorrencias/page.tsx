@@ -50,6 +50,9 @@ export default function RecorrenciasPage() {
   const [editing, setEditing] = useState<Recurrence | null>(null)
   const [form, setForm] = useState<Omit<Recurrence, 'id' | 'created_at'>>(emptyRecurrence(activeMode))
   const [amountStr, setAmountStr] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [dbError, setDbError] = useState<string | null>(null)
+  const [cardError, setCardError] = useState<string | null>(null)
 
   function openCreate() {
     const base = emptyRecurrence(activeMode)
@@ -73,24 +76,34 @@ export default function RecorrenciasPage() {
   function closeModal() {
     setModalMode(null)
     setEditing(null)
+    setDbError(null)
   }
 
-  function handleSave() {
+  async function handleSave() {
     const amount = parseFloat(amountStr.replace(',', '.'))
     if (!form.title.trim() || isNaN(amount) || amount <= 0) return
 
     const data = { ...form, amount }
 
-    if (modalMode === 'edit' && editing) {
-      updateRecurrence(editing.id, data)
-    } else {
-      addRecurrence({
-        ...data,
-        id: Date.now().toString(),
-        created_at: new Date().toISOString(),
-      })
+    setSaving(true)
+    setDbError(null)
+    try {
+      if (modalMode === 'edit' && editing) {
+        await updateRecurrence(editing.id, data)
+      } else {
+        await addRecurrence({
+          ...data,
+          id: '',
+          active: true,
+          created_at: new Date().toISOString(),
+        })
+      }
+      closeModal()
+    } catch {
+      setDbError('Erro ao salvar. Tente novamente.')
+    } finally {
+      setSaving(false)
     }
-    closeModal()
   }
 
   const active = recurrences.filter(r => r.active)
@@ -132,6 +145,14 @@ export default function RecorrenciasPage() {
         </div>
       </div>
 
+      {/* Card-level error */}
+      {cardError && (
+        <div className="flex items-center justify-between bg-expense-50 border border-expense-200 text-expense-700 text-sm rounded-2xl px-4 py-3">
+          <span>{cardError}</span>
+          <button onClick={() => setCardError(null)} className="ml-3 text-expense-500 hover:text-expense-700 font-bold">✕</button>
+        </div>
+      )}
+
       {/* Active */}
       {active.length > 0 && (
         <div>
@@ -140,10 +161,10 @@ export default function RecorrenciasPage() {
             {active.map(r => (
               <RecurrenceCard key={r.id} recurrence={r}
                 onEdit={() => openEdit(r)}
-                onToggle={() => toggleRecurrence(r.id)}
+                onToggle={async () => { try { await toggleRecurrence(r.id) } catch { setCardError('Erro ao alterar recorrência. Tente novamente.') } }}
                 onDelete={() => setConfirmDelete(r.id)}
                 confirmDelete={confirmDelete === r.id}
-                onConfirmDelete={() => { removeRecurrence(r.id); setConfirmDelete(null) }}
+                onConfirmDelete={async () => { try { await removeRecurrence(r.id); setConfirmDelete(null) } catch { setCardError('Erro ao remover. Tente novamente.') } }}
                 onCancelDelete={() => setConfirmDelete(null)}
               />
             ))}
@@ -159,10 +180,10 @@ export default function RecorrenciasPage() {
             {paused.map(r => (
               <RecurrenceCard key={r.id} recurrence={r}
                 onEdit={() => openEdit(r)}
-                onToggle={() => toggleRecurrence(r.id)}
+                onToggle={async () => { try { await toggleRecurrence(r.id) } catch { setCardError('Erro ao alterar recorrência. Tente novamente.') } }}
                 onDelete={() => setConfirmDelete(r.id)}
                 confirmDelete={confirmDelete === r.id}
-                onConfirmDelete={() => { removeRecurrence(r.id); setConfirmDelete(null) }}
+                onConfirmDelete={async () => { try { await removeRecurrence(r.id); setConfirmDelete(null) } catch { setCardError('Erro ao remover. Tente novamente.') } }}
                 onCancelDelete={() => setConfirmDelete(null)}
               />
             ))}
@@ -302,14 +323,22 @@ export default function RecorrenciasPage() {
                 className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 bg-white text-sm font-semibold outline-none focus:border-primary-400 transition-all" />
             </div>
 
+            {/* DB error */}
+            {dbError && (
+              <div className="flex items-center justify-between bg-expense-50 border border-expense-200 text-expense-700 text-sm rounded-2xl px-4 py-3">
+                <span>{dbError}</span>
+                <button onClick={() => setDbError(null)} className="ml-3 text-expense-500 hover:text-expense-700 font-bold">✕</button>
+              </div>
+            )}
+
             {/* Save */}
             <button
               onClick={handleSave}
-              disabled={!form.title.trim() || !amountStr || parseFloat(amountStr) <= 0}
+              disabled={saving || !form.title.trim() || !amountStr || parseFloat(amountStr) <= 0}
               className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4"
             >
               <Check className="w-5 h-5" />
-              {modalMode === 'create' ? 'Criar recorrência' : 'Salvar alterações'}
+              {saving ? 'Salvando...' : modalMode === 'create' ? 'Criar recorrência' : 'Salvar alterações'}
             </button>
           </div>
         </div>

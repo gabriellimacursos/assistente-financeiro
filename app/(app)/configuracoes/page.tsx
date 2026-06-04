@@ -61,6 +61,8 @@ export default function ConfiguracoesPage() {
     typeof window !== 'undefined' ? localStorage.getItem(SYSTEM_PIN_KEY) ?? '' : ''
   )
   const [securitySaved, setSecuritySaved] = useState<string | null>(null)
+  const [dbError, setDbError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const activeProfile = profiles.find(p => p.id === activeProfileId)
 
@@ -68,21 +70,29 @@ export default function ConfiguracoesPage() {
     return value.replace(/\D/g, '').slice(0, 4)
   }
 
-  function handleAddProfile() {
+  async function handleAddProfile() {
     const name = newProfileName.trim()
     if (!name) return
-    addProfile({
-      id: Date.now().toString(),
-      name,
-      initials: getInitials(name),
-      color: newProfileColor,
-      pin: undefined,
-      isOwner: false,
-      created_at: new Date().toISOString(),
-    })
-    setNewProfileName('')
-    setNewProfileColor(PROFILE_COLORS[1])
-    setShowAddProfile(false)
+    setSaving(true)
+    setDbError(null)
+    try {
+      await addProfile({
+        id: Date.now().toString(),
+        name,
+        initials: getInitials(name),
+        color: newProfileColor,
+        pin: undefined,
+        isOwner: false,
+        created_at: new Date().toISOString(),
+      })
+      setNewProfileName('')
+      setNewProfileColor(PROFILE_COLORS[1])
+      setShowAddProfile(false)
+    } catch {
+      setDbError('Erro ao salvar. Tente novamente.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleSaveSystemPin() {
@@ -109,11 +119,19 @@ export default function ConfiguracoesPage() {
     cats.map(c => typeof c === 'string' ? { name: c, direction: 'both' as Direction } : c)
   const currentCats = normalize(catMode === 'business' ? categoriesBusiness : categoriesPersonal)
 
-  function handleAddCategory() {
+  async function handleAddCategory() {
     const name = newCat.trim()
     if (!name) return
-    addCategory(name, catMode, newDirection)
-    setNewCat('')
+    setSaving(true)
+    setDbError(null)
+    try {
+      await addCategory(name, catMode, newDirection)
+      setNewCat('')
+    } catch {
+      setDbError('Erro ao salvar. Tente novamente.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const isOwner = activeProfile?.isOwner ?? false
@@ -186,6 +204,20 @@ export default function ConfiguracoesPage() {
         <p className="text-slate-500 text-sm">Personalize seu assistente financeiro</p>
       </div>
 
+      {/* DB error banner */}
+      {dbError && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-expense-50 border border-expense-200 rounded-xl">
+          <p className="flex-1 text-sm font-semibold text-expense-700">{dbError}</p>
+          <button
+            onClick={() => setDbError(null)}
+            className="w-6 h-6 flex items-center justify-center rounded-full text-expense-400 hover:text-expense-600 hover:bg-expense-100 transition-colors shrink-0"
+            aria-label="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Active profile card */}
       {activeProfile && (
         <div className="card p-5 flex items-center gap-4">
@@ -242,8 +274,21 @@ export default function ConfiguracoesPage() {
                 {!profile.isOwner && (
                   removingProfile === profile.id ? (
                     <div className="flex gap-1 shrink-0">
-                      <button onClick={() => { removeProfile(profile.id); setRemovingProfile(null) }}
-                        className="w-7 h-7 bg-expense-500 rounded-lg flex items-center justify-center">
+                      <button
+                        disabled={saving}
+                        onClick={async () => {
+                          setSaving(true)
+                          setDbError(null)
+                          try {
+                            await removeProfile(profile.id)
+                            setRemovingProfile(null)
+                          } catch {
+                            setDbError('Erro ao salvar. Tente novamente.')
+                          } finally {
+                            setSaving(false)
+                          }
+                        }}
+                        className="w-7 h-7 bg-expense-500 rounded-lg flex items-center justify-center disabled:opacity-40">
                         <Trash2 className="w-3.5 h-3.5 text-white" />
                       </button>
                       <button onClick={() => setRemovingProfile(null)}
@@ -269,19 +314,44 @@ export default function ConfiguracoesPage() {
                     value={pinEditValue}
                     onChange={e => setPinEditValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
                     placeholder="• • • •"
-                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 text-center text-2xl font-bold tracking-[0.5em] outline-none focus:border-primary-400 bg-white transition-all"
+                    className="w-full max-w-[200px] mx-auto px-4 py-3 rounded-xl border-2 border-slate-200 text-center text-2xl font-bold tracking-[0.5em] outline-none focus:border-primary-400 bg-white transition-all"
                   />
                   <button
-                    onClick={() => { if (pinEditValue.length === 4) { updateProfile(profile.id, { pin: pinEditValue }); setPinEditId(null); setPinEditValue('') } }}
-                    disabled={pinEditValue.length !== 4}
+                    disabled={pinEditValue.length !== 4 || saving}
+                    onClick={async () => {
+                      if (pinEditValue.length !== 4) return
+                      setSaving(true)
+                      setDbError(null)
+                      try {
+                        await updateProfile(profile.id, { pin: pinEditValue })
+                        setPinEditId(null)
+                        setPinEditValue('')
+                      } catch {
+                        setDbError('Erro ao salvar. Tente novamente.')
+                      } finally {
+                        setSaving(false)
+                      }
+                    }}
                     className="w-full py-3 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
                   >
                     Salvar PIN
                   </button>
                   {profile.pin && (
                     <button
-                      onClick={() => { updateProfile(profile.id, { pin: undefined }); setPinEditId(null) }}
-                      className="w-full text-center text-xs text-expense-500 font-semibold hover:text-expense-600 transition-colors py-1"
+                      disabled={saving}
+                      onClick={async () => {
+                        setSaving(true)
+                        setDbError(null)
+                        try {
+                          await updateProfile(profile.id, { pin: undefined })
+                          setPinEditId(null)
+                        } catch {
+                          setDbError('Erro ao salvar. Tente novamente.')
+                        } finally {
+                          setSaving(false)
+                        }
+                      }}
+                      className="w-full text-center text-xs text-expense-500 font-semibold hover:text-expense-600 disabled:opacity-40 transition-colors py-1"
                     >
                       Remover PIN
                     </button>
@@ -310,7 +380,7 @@ export default function ConfiguracoesPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={handleAddProfile} disabled={!newProfileName.trim()}
+              <button onClick={handleAddProfile} disabled={!newProfileName.trim() || saving}
                 className="flex-1 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors">
                 Criar perfil
               </button>
@@ -362,7 +432,7 @@ export default function ConfiguracoesPage() {
               />
               <button
                 onClick={handleAddCategory}
-                disabled={!newCat.trim()}
+                disabled={!newCat.trim() || saving}
                 className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
               >
                 <Plus className="w-4 h-4" />
@@ -407,8 +477,20 @@ export default function ConfiguracoesPage() {
                     <div className="flex items-center gap-1 px-2.5 py-1.5 bg-expense-50 border-2 border-expense-300 rounded-xl">
                       <span className="text-xs font-semibold text-expense-700">{cat.name}</span>
                       <button
-                        onClick={() => { removeCategory(cat.name, catMode); setRemovingCat(null) }}
-                        className="w-4 h-4 bg-expense-500 rounded-full flex items-center justify-center ml-1"
+                        disabled={saving}
+                        onClick={async () => {
+                          setSaving(true)
+                          setDbError(null)
+                          try {
+                            await removeCategory(cat.name, catMode)
+                            setRemovingCat(null)
+                          } catch {
+                            setDbError('Erro ao salvar. Tente novamente.')
+                          } finally {
+                            setSaving(false)
+                          }
+                        }}
+                        className="w-4 h-4 bg-expense-500 rounded-full flex items-center justify-center ml-1 disabled:opacity-40"
                       >
                         <X className="w-2.5 h-2.5 text-white" />
                       </button>

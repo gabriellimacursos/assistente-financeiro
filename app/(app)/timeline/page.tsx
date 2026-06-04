@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import {
   TrendingUp, TrendingDown, Trash2, Mic, Calendar, ChevronDown, X,
-  Pencil, Check, Building2, User, Plus, Search, SlidersHorizontal, Tag,
+  Pencil, Check, Building2, User, Plus, Search, Loader2, Tag,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
@@ -40,8 +40,8 @@ function getPeriodOptions(): PeriodOption[] {
 interface EditModalProps {
   tx: Transaction
   onClose: () => void
-  onSave: (data: Partial<Transaction>) => void
-  onDelete: () => void
+  onSave: (data: Partial<Transaction>) => Promise<void>
+  onDelete: () => Promise<void>
   categoriesPersonal: any[]
   categoriesBusiness: any[]
   addCategory: (name: string, mode: Mode, direction: 'income' | 'expense' | 'both') => void
@@ -57,6 +57,8 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
   const [confirmDel, setConfirmDel]   = useState(false)
   const [newCatInput, setNewCatInput] = useState('')
   const [newCatDir, setNewCatDir]     = useState<'income' | 'expense' | 'both'>(tx.type)
+  const [saving, setSaving]           = useState(false)
+  const [deleting, setDeleting]       = useState(false)
 
   const rawCats = mode === 'business' ? categoriesBusiness : categoriesPersonal
   const cats = rawCats
@@ -64,10 +66,24 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
     .filter((c: any) => c.direction === 'both' || c.direction === type)
     .map((c: any) => c.name as string)
 
-  function handleSave() {
+  async function handleSave() {
     const num = parseFloat(amount.replace(',', '.'))
     if (!description.trim() || isNaN(num) || num <= 0) return
-    onSave({ description: description.trim(), amount: num, type, mode, category, date: date + 'T' + tx.date.split('T')[1] })
+    setSaving(true)
+    try {
+      await onSave({ description: description.trim(), amount: num, type, mode, category, date: date + 'T' + tx.date.split('T')[1] })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      await onDelete()
+    } finally {
+      setDeleting(false)
+    }
   }
 
   function handleCreateCat() {
@@ -93,11 +109,11 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
           <div className="flex items-center justify-between pt-1">
             <h2 className="text-lg font-bold text-slate-800">Editar lançamento</h2>
             <div className="flex items-center gap-2">
-              <button onClick={() => setConfirmDel(true)}
-                className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center hover:bg-expense-100 transition-colors">
+              <button onClick={() => setConfirmDel(true)} disabled={saving || deleting}
+                className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center hover:bg-expense-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <Trash2 className="w-4 h-4 text-expense-500" />
               </button>
-              <button onClick={onClose} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center">
+              <button onClick={onClose} disabled={saving || deleting} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
                 <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
@@ -109,12 +125,13 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
               <p className="text-center text-sm font-semibold text-expense-700">Excluir este lançamento?</p>
               <p className="text-center text-xs text-expense-500">Essa ação não pode ser desfeita.</p>
               <div className="flex gap-2">
-                <button onClick={onDelete}
-                  className="flex-1 py-3 bg-expense-500 text-white font-semibold rounded-2xl hover:bg-expense-600 transition-colors text-sm">
-                  Sim, excluir
+                <button onClick={handleDelete} disabled={deleting}
+                  className="flex-1 py-3 bg-expense-500 text-white font-semibold rounded-2xl hover:bg-expense-600 transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                  {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {deleting ? 'Excluindo…' : 'Sim, excluir'}
                 </button>
-                <button onClick={() => setConfirmDel(false)}
-                  className="flex-1 py-3 bg-white text-slate-700 font-semibold rounded-2xl border-2 border-slate-200 hover:bg-slate-50 transition-colors text-sm">
+                <button onClick={() => setConfirmDel(false)} disabled={deleting}
+                  className="flex-1 py-3 bg-white text-slate-700 font-semibold rounded-2xl border-2 border-slate-200 hover:bg-slate-50 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                   Cancelar
                 </button>
               </div>
@@ -224,9 +241,12 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
           </div>
 
           {/* Botões */}
-          <button onClick={handleSave}
-            className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4">
-            <Check className="w-5 h-5" /> Salvar alterações
+          <button onClick={handleSave} disabled={saving || deleting}
+            className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4 disabled:opacity-70 disabled:cursor-not-allowed">
+            {saving
+              ? <><Loader2 className="w-5 h-5 animate-spin" /> Salvando…</>
+              : <><Check className="w-5 h-5" /> Salvar alterações</>
+            }
           </button>
 
         </div>
@@ -252,6 +272,7 @@ export default function TimelinePage() {
   const [showCustom, setShowCustom]         = useState(false)
   const [editingTx, setEditingTx]           = useState<Transaction | null>(null)
   const [searchQuery, setSearchQuery]       = useState('')
+  const [dbError, setDbError]               = useState<string | null>(null)
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [showCategoryFilter, setShowCategoryFilter] = useState(false)
 
@@ -515,6 +536,16 @@ export default function TimelinePage() {
         </div>
       </div>
 
+      {/* DB error banner */}
+      {dbError && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-expense-50 border-2 border-expense-200 rounded-2xl text-expense-700 text-sm font-semibold">
+          <span>{dbError}</span>
+          <button onClick={() => setDbError(null)} className="shrink-0 w-6 h-6 flex items-center justify-center hover:bg-expense-100 rounded-lg transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Timeline */}
       {grouped.length === 0 ? (
         <div className="text-center py-16">
@@ -591,8 +622,22 @@ export default function TimelinePage() {
         <EditModal
           tx={editingTx}
           onClose={() => setEditingTx(null)}
-          onSave={(data) => { updateTransaction(editingTx.id, data); setEditingTx(null) }}
-          onDelete={() => { removeTransaction(editingTx.id); setEditingTx(null) }}
+          onSave={async (data) => {
+            try {
+              await updateTransaction(editingTx.id, data)
+              setEditingTx(null)
+            } catch {
+              setDbError('Erro ao salvar. Tente novamente.')
+            }
+          }}
+          onDelete={async () => {
+            try {
+              await removeTransaction(editingTx.id)
+              setEditingTx(null)
+            } catch {
+              setDbError('Erro ao excluir. Tente novamente.')
+            }
+          }}
           categoriesPersonal={categoriesPersonal}
           categoriesBusiness={categoriesBusiness}
           addCategory={addCategory}

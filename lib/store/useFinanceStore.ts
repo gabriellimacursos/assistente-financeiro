@@ -70,20 +70,20 @@ interface FinanceStore {
   initializeCloud: (userId: string) => Promise<void>
   clearCloudSession: () => void
   addTransaction: (t: Transaction) => Promise<void>
-  removeTransaction: (id: string) => void
-  updateTransaction: (id: string, data: Partial<Transaction>) => void
-  addProfile: (p: UserProfile) => void
-  updateProfile: (id: string, data: Partial<UserProfile>) => void
-  removeProfile: (id: string) => void
-  addRecurrence: (r: Recurrence) => void
-  updateRecurrence: (id: string, data: Partial<Recurrence>) => void
-  toggleRecurrence: (id: string) => void
-  removeRecurrence: (id: string) => void
-  addCategory: (name: string, mode: Mode, direction: 'income' | 'expense' | 'both') => void
-  removeCategory: (name: string, mode: Mode) => void
-  addCard: (card: CreditCard) => void
-  updateCard: (id: string, data: Partial<CreditCard>) => void
-  removeCard: (id: string) => void
+  removeTransaction: (id: string) => Promise<void>
+  updateTransaction: (id: string, data: Partial<Transaction>) => Promise<void>
+  addProfile: (p: UserProfile) => Promise<void>
+  updateProfile: (id: string, data: Partial<UserProfile>) => Promise<void>
+  removeProfile: (id: string) => Promise<void>
+  addRecurrence: (r: Recurrence) => Promise<void>
+  updateRecurrence: (id: string, data: Partial<Recurrence>) => Promise<void>
+  toggleRecurrence: (id: string) => Promise<void>
+  removeRecurrence: (id: string) => Promise<void>
+  addCategory: (name: string, mode: Mode, direction: 'income' | 'expense' | 'both') => Promise<void>
+  removeCategory: (name: string, mode: Mode) => Promise<void>
+  addCard: (card: CreditCard) => Promise<void>
+  updateCard: (id: string, data: Partial<CreditCard>) => Promise<void>
+  removeCard: (id: string) => Promise<void>
 }
 
 function uuid() {
@@ -385,111 +385,163 @@ export const useFinanceStore = create<FinanceStore>()(
         }
       },
 
-      removeTransaction: (id) =>
-        set((state) => {
-          if (state.cloudUserId) supabase.from('transactions').delete().eq('id', id).then(({ error }) => error && console.error(error))
-          return { transactions: state.transactions.filter((t) => t.id !== id) }
-        }),
+      removeTransaction: async (id) => {
+        const prev = get().transactions
+        set((state) => ({ transactions: state.transactions.filter((t) => t.id !== id) }))
+        if (get().cloudUserId) {
+          const { error } = await supabase.from('transactions').delete().eq('id', id)
+          if (error) { set({ transactions: prev }); throw error }
+        }
+      },
 
-      updateTransaction: (id, data) =>
-        set((state) => {
-          const next = state.transactions.map((t) => t.id === id ? { ...t, ...data } : t)
-          const item = next.find(t => t.id === id)
-          if (state.cloudUserId && item) supabase.from('transactions').upsert(transactionToDb(item, state.cloudUserId)).then(({ error }) => error && console.error(error))
-          return { transactions: next }
-        }),
+      updateTransaction: async (id, data) => {
+        const prev = get().transactions
+        const next = prev.map((t) => t.id === id ? { ...t, ...data } : t)
+        const item = next.find(t => t.id === id)
+        set({ transactions: next })
+        const userId = get().cloudUserId
+        if (userId && item) {
+          const { error } = await supabase.from('transactions').upsert(transactionToDb(item, userId))
+          if (error) { set({ transactions: prev }); throw error }
+        }
+      },
 
-      addRecurrence: (r) =>
-        set((state) => {
-          const userId = state.cloudUserId
-          const item = { ...r, id: ensureUuid(r.id), user_id: userId ?? r.user_id }
-          if (userId) supabase.from('recurrences').upsert(recurrenceToDb(item, userId)).then(({ error }) => error && console.error(error))
-          return { recurrences: [item, ...state.recurrences] }
-        }),
+      addRecurrence: async (r) => {
+        const userId = get().cloudUserId
+        const item = { ...r, id: ensureUuid(r.id), user_id: userId ?? r.user_id }
+        set((state) => ({ recurrences: [item, ...state.recurrences] }))
+        if (userId) {
+          const { error } = await supabase.from('recurrences').upsert(recurrenceToDb(item, userId))
+          if (error) { set((state) => ({ recurrences: state.recurrences.filter(rec => rec.id !== item.id) })); throw error }
+        }
+      },
 
-      updateRecurrence: (id, data) =>
-        set((state) => {
-          const next = state.recurrences.map((r) => r.id === id ? { ...r, ...data } : r)
-          const item = next.find(r => r.id === id)
-          if (state.cloudUserId && item) supabase.from('recurrences').upsert(recurrenceToDb(item, state.cloudUserId)).then(({ error }) => error && console.error(error))
-          return { recurrences: next }
-        }),
+      updateRecurrence: async (id, data) => {
+        const prev = get().recurrences
+        const next = prev.map((r) => r.id === id ? { ...r, ...data } : r)
+        const item = next.find(r => r.id === id)
+        set({ recurrences: next })
+        const userId = get().cloudUserId
+        if (userId && item) {
+          const { error } = await supabase.from('recurrences').upsert(recurrenceToDb(item, userId))
+          if (error) { set({ recurrences: prev }); throw error }
+        }
+      },
 
-      toggleRecurrence: (id) =>
-        set((state) => {
-          const next = state.recurrences.map((r) => r.id === id ? { ...r, active: !r.active } : r)
-          const item = next.find(r => r.id === id)
-          if (state.cloudUserId && item) supabase.from('recurrences').upsert(recurrenceToDb(item, state.cloudUserId)).then(({ error }) => error && console.error(error))
-          return { recurrences: next }
-        }),
+      toggleRecurrence: async (id) => {
+        const prev = get().recurrences
+        const next = prev.map((r) => r.id === id ? { ...r, active: !r.active } : r)
+        const item = next.find(r => r.id === id)
+        set({ recurrences: next })
+        const userId = get().cloudUserId
+        if (userId && item) {
+          const { error } = await supabase.from('recurrences').upsert(recurrenceToDb(item, userId))
+          if (error) { set({ recurrences: prev }); throw error }
+        }
+      },
 
-      removeRecurrence: (id) =>
-        set((state) => {
-          if (state.cloudUserId) supabase.from('recurrences').delete().eq('id', id).then(({ error }) => error && console.error(error))
-          return { recurrences: state.recurrences.filter((r) => r.id !== id) }
-        }),
+      removeRecurrence: async (id) => {
+        const prev = get().recurrences
+        set((state) => ({ recurrences: state.recurrences.filter((r) => r.id !== id) }))
+        if (get().cloudUserId) {
+          const { error } = await supabase.from('recurrences').delete().eq('id', id)
+          if (error) { set({ recurrences: prev }); throw error }
+        }
+      },
 
-      addCategory: (name, mode, direction) =>
-        set((state) => {
-          const trimmed = name.trim()
-          if (!trimmed) return state
-          const item: CategoryItem = { name: trimmed, direction }
-          if (state.cloudUserId) {
-            supabase.from('categories').insert({ user_id: state.cloudUserId, name: trimmed, mode, direction }).then(({ error }) => {
-              if (error && error.code !== '23505') console.error(error)
-            })
+      addCategory: async (name, mode, direction) => {
+        const trimmed = name.trim()
+        if (!trimmed) return
+        const item: CategoryItem = { name: trimmed, direction }
+        const { cloudUserId } = get()
+        if (mode === 'personal') {
+          if (get().categoriesPersonal.some(c => c.name === trimmed)) return
+          set((state) => ({ categoriesPersonal: [...state.categoriesPersonal, item] }))
+        } else {
+          if (get().categoriesBusiness.some(c => c.name === trimmed)) return
+          set((state) => ({ categoriesBusiness: [...state.categoriesBusiness, item] }))
+        }
+        if (cloudUserId) {
+          const { error } = await supabase.from('categories').insert({ user_id: cloudUserId, name: trimmed, mode, direction })
+          if (error && error.code !== '23505') {
+            if (mode === 'personal') set((state) => ({ categoriesPersonal: state.categoriesPersonal.filter(c => c.name !== trimmed) }))
+            else set((state) => ({ categoriesBusiness: state.categoriesBusiness.filter(c => c.name !== trimmed) }))
+            throw error
           }
-          if (mode === 'personal') {
-            if (state.categoriesPersonal.some(c => c.name === trimmed)) return state
-            return { categoriesPersonal: [...state.categoriesPersonal, item] }
-          }
-          if (state.categoriesBusiness.some(c => c.name === trimmed)) return state
-          return { categoriesBusiness: [...state.categoriesBusiness, item] }
-        }),
+        }
+      },
 
-      removeCategory: (name, mode) =>
-        set((state) => {
-          if (state.cloudUserId) supabase.from('categories').delete().eq('user_id', state.cloudUserId).eq('name', name).eq('mode', mode).then(({ error }) => error && console.error(error))
-          return mode === 'personal'
-            ? { categoriesPersonal: state.categoriesPersonal.filter(c => c.name !== name) }
-            : { categoriesBusiness: state.categoriesBusiness.filter(c => c.name !== name) }
-        }),
+      removeCategory: async (name, mode) => {
+        const prev = { categoriesPersonal: get().categoriesPersonal, categoriesBusiness: get().categoriesBusiness }
+        if (mode === 'personal') set((state) => ({ categoriesPersonal: state.categoriesPersonal.filter(c => c.name !== name) }))
+        else set((state) => ({ categoriesBusiness: state.categoriesBusiness.filter(c => c.name !== name) }))
+        const { cloudUserId } = get()
+        if (cloudUserId) {
+          const { error } = await supabase.from('categories').delete().eq('user_id', cloudUserId).eq('name', name).eq('mode', mode)
+          if (error) { set(prev); throw error }
+        }
+      },
 
-      addProfile: (p) => set(s => {
+      addProfile: async (p) => {
         const item = { ...p, id: p.id || uuid() }
-        if (s.cloudUserId) supabase.from('profiles').upsert(profileToDb(item, s.cloudUserId)).then(({ error }) => error && console.error(error))
-        return { profiles: [...s.profiles, item] }
-      }),
+        set((s) => ({ profiles: [...s.profiles, item] }))
+        const { cloudUserId } = get()
+        if (cloudUserId) {
+          const { error } = await supabase.from('profiles').upsert(profileToDb(item, cloudUserId))
+          if (error) { set((s) => ({ profiles: s.profiles.filter(prof => prof.id !== item.id) })); throw error }
+        }
+      },
 
-      updateProfile: (id, data) => set(s => {
-        const next = s.profiles.map(p => p.id === id ? { ...p, ...data } : p)
+      updateProfile: async (id, data) => {
+        const prev = get().profiles
+        const next = prev.map(p => p.id === id ? { ...p, ...data } : p)
         const item = next.find(p => p.id === id)
-        if (s.cloudUserId && item) supabase.from('profiles').upsert(profileToDb(item, s.cloudUserId)).then(({ error }) => error && console.error(error))
-        return { profiles: next }
-      }),
+        set({ profiles: next })
+        const { cloudUserId } = get()
+        if (cloudUserId && item) {
+          const { error } = await supabase.from('profiles').upsert(profileToDb(item, cloudUserId))
+          if (error) { set({ profiles: prev }); throw error }
+        }
+      },
 
-      removeProfile: (id) => set(s => {
-        if (s.cloudUserId) supabase.from('profiles').delete().eq('id', id).then(({ error }) => error && console.error(error))
-        return { profiles: s.profiles.filter(p => p.id !== id), activeProfileId: s.activeProfileId === id ? '' : s.activeProfileId }
-      }),
+      removeProfile: async (id) => {
+        const prev = { profiles: get().profiles, activeProfileId: get().activeProfileId }
+        set((s) => ({ profiles: s.profiles.filter(p => p.id !== id), activeProfileId: s.activeProfileId === id ? '' : s.activeProfileId }))
+        if (get().cloudUserId) {
+          const { error } = await supabase.from('profiles').delete().eq('id', id)
+          if (error) { set(prev); throw error }
+        }
+      },
 
-      addCard: (card) => set(s => {
-        const userId = s.cloudUserId
+      addCard: async (card) => {
+        const userId = get().cloudUserId
         const item = { ...card, id: ensureUuid(card.id) }
-        if (userId) supabase.from('credit_cards').upsert(cardToDb(item, userId)).then(({ error }) => error && console.error(error))
-        return { cards: [item, ...s.cards] }
-      }),
+        set((s) => ({ cards: [item, ...s.cards] }))
+        if (userId) {
+          const { error } = await supabase.from('credit_cards').upsert(cardToDb(item, userId))
+          if (error) { set((s) => ({ cards: s.cards.filter(c => c.id !== item.id) })); throw error }
+        }
+      },
 
-      updateCard: (id, data) => set(s => {
-        const next = s.cards.map(c => c.id === id ? { ...c, ...data } : c)
+      updateCard: async (id, data) => {
+        const prev = get().cards
+        const next = prev.map(c => c.id === id ? { ...c, ...data } : c)
         const item = next.find(c => c.id === id)
-        if (s.cloudUserId && item) supabase.from('credit_cards').upsert(cardToDb(item, s.cloudUserId)).then(({ error }) => error && console.error(error))
-        return { cards: next }
-      }),
+        set({ cards: next })
+        const { cloudUserId } = get()
+        if (cloudUserId && item) {
+          const { error } = await supabase.from('credit_cards').upsert(cardToDb(item, cloudUserId))
+          if (error) { set({ cards: prev }); throw error }
+        }
+      },
 
-      removeCard: (id) => set(s => {
-        if (s.cloudUserId) supabase.from('credit_cards').delete().eq('id', id).then(({ error }) => error && console.error(error))
-        return { cards: s.cards.filter(c => c.id !== id) }
-      }),
+      removeCard: async (id) => {
+        const prev = get().cards
+        set((s) => ({ cards: s.cards.filter(c => c.id !== id) }))
+        if (get().cloudUserId) {
+          const { error } = await supabase.from('credit_cards').delete().eq('id', id)
+          if (error) { set({ cards: prev }); throw error }
+        }
+      },
     })
 )
