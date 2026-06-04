@@ -524,8 +524,8 @@ export default function DashboardPage() {
 
       {/* Modal confirmação de pagamento */}
       {confirmPayCard && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setConfirmPayCard(null)}>
-          <div className="w-full bg-white rounded-t-3xl p-6 space-y-5 animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setConfirmPayCard(null)}>
+          <div className="w-full bg-white rounded-t-3xl p-6 pb-10 space-y-5 animate-slide-up" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 bg-primary-100 rounded-xl flex items-center justify-center">
@@ -568,7 +568,7 @@ export default function DashboardPage() {
       )}
 
       {/* FAB mobile */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-40">
+      <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
         <button
           onClick={() => router.push('/registrar')}
           className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform"

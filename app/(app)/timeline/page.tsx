@@ -79,7 +79,7 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={onClose}>
       <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl max-h-[92vh] overflow-y-auto animate-slide-up"
         onClick={e => e.stopPropagation()}>
 
@@ -583,7 +583,7 @@ export default function TimelinePage() {
       )}
 
       {/* FAB */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-40">
+      <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
         <button onClick={() => router.push('/registrar')}
           className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform">
           <Mic className="w-6 h-6" />

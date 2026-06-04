@@ -319,7 +319,7 @@ export default function CartoesPage() {
       )}
 
       {/* FAB mobile */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-40">
+      <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
         <button onClick={openCreate}
           className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform">
           <Plus className="w-6 h-6" />
@@ -328,7 +328,7 @@ export default function CartoesPage() {
 
       {/* ── Modal add/edit card ── */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end lg:items-center lg:justify-center" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end lg:items-center lg:justify-center" onClick={() => setShowModal(false)}>
           <div className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl p-6 pb-28 lg:pb-6 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800">{editingCard ? 'Editar cartão' : 'Novo cartão'}</h2>

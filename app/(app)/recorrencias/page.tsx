@@ -182,7 +182,7 @@ export default function RecorrenciasPage() {
       )}
 
       {/* FAB mobile */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-40">
+      <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
         <button onClick={openCreate}
           className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform">
           <Plus className="w-6 h-6" />
@@ -191,9 +191,9 @@ export default function RecorrenciasPage() {
 
       {/* ── Modal criar / editar ── */}
       {modalMode && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end lg:items-center lg:justify-center" onClick={closeModal}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end lg:items-center lg:justify-center" onClick={closeModal}>
           <div
-            className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up"
+            className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl p-6 pb-10 lg:pb-6 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">

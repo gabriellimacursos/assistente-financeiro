@@ -637,8 +637,8 @@ export default function RegistrarPage() {
 
         {/* Edit modal */}
         {editField && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setEditField(null)}>
-            <div className="w-full bg-white rounded-t-3xl p-6 space-y-4 max-h-[80vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => setEditField(null)}>
+            <div className="w-full bg-white rounded-t-3xl p-6 pb-10 space-y-4 max-h-[80vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
 
               {editField === 'type' && (
                 <>
