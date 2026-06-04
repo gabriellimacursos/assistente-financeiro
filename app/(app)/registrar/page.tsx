@@ -40,6 +40,7 @@ const RECURRENCE_OPTIONS: { label: string; value: RecurrenceFrequency | 'none' }
 
 export default function RegistrarPage() {
   const { activeMode, setActiveMode, addTransaction, addCategory, transactions, categoriesPersonal, categoriesBusiness, cards, profiles, activeProfileId } = useFinanceStore()
+  const userCategories = { personal: categoriesPersonal, business: categoriesBusiness }
   const activeProfile = profiles.find(p => p.id === activeProfileId)
   const voice = useVoiceRecorder()
 
@@ -112,7 +113,7 @@ export default function RegistrarPage() {
     if (!text.trim()) return
     setPendingText(text.trim())
     setStep('processing')
-    const result = await interpretFinancialInput(text.trim(), activeMode, activeProfile)
+    const result = await interpretFinancialInput(text.trim(), activeMode, activeProfile, userCategories)
     setInterpretation(result)
     setEditAmount(result.amount.toString())
 
@@ -178,7 +179,11 @@ export default function RegistrarPage() {
     } else if (needsCategory) {
       updated.needsClarification = true
       updated.clarificationQuestion = 'Isso foi relacionado a quê?'
-      updated.clarificationOptions = getCategoryOptions(updated.type, updated.mode)
+      updated.clarificationOptions = getCategoryOptions(
+        updated.type,
+        updated.mode,
+        updated.mode === 'business' ? categoriesBusiness : categoriesPersonal
+      )
       setInterpretation(updated)
     } else {
       updated.needsClarification = false

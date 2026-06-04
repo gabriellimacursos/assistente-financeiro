@@ -83,8 +83,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { text, profileContext } = body as {
+    const { text, profileContext, categories } = body as {
       text: string
+      categories?: string[]
       profileContext?: {
         profileType?: string
         incomeSources?: string[]
@@ -96,6 +97,16 @@ export async function POST(req: NextRequest) {
     if (!text?.trim()) {
       return NextResponse.json({ error: 'Texto vazio' }, { status: 400 })
     }
+
+    // Constrói lista de categorias dinamicamente
+    const DEFAULT_CATS = 'Alimentação, Mercado, Combustível, Transporte, Casa, Saúde, Família, Lazer, Academia, Assinaturas, Cartão, Aluguel, Salário, Freelance, Venda, Aluguel recebido, Investimento, Curso Online, Curso Presencial, Assistência Técnica, Consultoria, Ferramentas, Materiais, Marketing, Tráfego Pago, Plataforma, Professor/Parceiro, Conta Fixa, Equipamentos, Impostos, Pró-labore, Outros'
+    const categoryList = categories && categories.length > 0
+      ? categories.join(', ') + ', Outros'
+      : DEFAULT_CATS
+    const dynamicPrompt = SYSTEM_PROMPT.replace(
+      /Categorias disponíveis:.*$/m,
+      `Categorias disponíveis: ${categoryList}`
+    )
 
     let userContext = ''
     if (profileContext) {
@@ -110,7 +121,7 @@ export async function POST(req: NextRequest) {
     const response = await client.chat.completions.create({
       model,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT + userContext },
+        { role: 'system', content: dynamicPrompt + userContext },
         { role: 'user', content: text },
       ],
       temperature: 0.1,

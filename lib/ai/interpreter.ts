@@ -1,7 +1,20 @@
-import type { AIInterpretation, Mode, UserProfile } from '@/types'
+import type { AIInterpretation, Mode, UserProfile, CategoryItem } from '@/types'
 
 // ─── Category options by type ─────────────────────────────────────────────
-export function getCategoryOptions(type: 'income' | 'expense', mode: Mode): string[] {
+export function getCategoryOptions(
+  type: 'income' | 'expense',
+  mode: Mode,
+  userCategories?: CategoryItem[]
+): string[] {
+  if (userCategories && userCategories.length > 0) {
+    const filtered = userCategories
+      .filter(c => c.direction === 'both' || c.direction === type)
+      .map(c => c.name)
+    if (filtered.length > 0) {
+      return filtered.includes('Outros') ? filtered : [...filtered, 'Outros']
+    }
+  }
+  // fallback hardcoded
   if (type === 'income') {
     return mode === 'business'
       ? ['Curso Online', 'Curso Presencial', 'Assistência Técnica', 'Consultoria', 'Investimento', 'Outros']
@@ -97,8 +110,14 @@ function detectType(text: string): { type: 'income' | 'expense'; confidence: num
   return { type: 'expense', confidence: 0.35 }
 }
 
-function detectCategory(text: string, mode: Mode): string {
+function detectCategory(text: string, mode: Mode, userCats?: string[]): string {
   const lower = text.toLowerCase()
+  // Verifica categorias customizadas primeiro
+  if (userCats) {
+    for (const cat of userCats) {
+      if (cat !== 'Outros' && lower.includes(cat.toLowerCase())) return cat
+    }
+  }
   let best = { category: '', score: 0 }
   for (const entry of CATEGORY_MAP) {
     if (entry.mode && entry.mode !== mode) continue
@@ -119,11 +138,19 @@ function detectModeOverride(text: string, defaultMode: Mode): Mode {
   return defaultMode
 }
 
-function mockInterpret(text: string, currentMode: Mode): AIInterpretation {
+function mockInterpret(
+  text: string,
+  currentMode: Mode,
+  userCategories?: { personal: CategoryItem[]; business: CategoryItem[] }
+): AIInterpretation {
   const mode = detectModeOverride(text, currentMode)
   const amount = extractAmount(text)
   const { type, confidence: typeConfidence } = detectType(text)
-  const category = detectCategory(text, mode)
+  const modeCategories = mode === 'business'
+    ? userCategories?.business
+    : userCategories?.personal
+  const userCatNames = modeCategories?.map(c => c.name)
+  const category = detectCategory(text, mode, userCatNames)
   const recurrenceSuggestion = RECURRENCE_TRIGGERS.some(t => text.toLowerCase().includes(t))
 
   let needsClarification = false
@@ -140,7 +167,7 @@ function mockInterpret(text: string, currentMode: Mode): AIInterpretation {
   } else if (!category) {
     needsClarification = true
     clarificationQuestion = 'Isso foi relacionado a quê?'
-    clarificationOptions = getCategoryOptions(type, mode)
+    clarificationOptions = getCategoryOptions(type, mode, modeCategories)
   }
 
   return {
@@ -157,8 +184,15 @@ function mockInterpret(text: string, currentMode: Mode): AIInterpretation {
 export async function interpretFinancialInput(
   text: string,
   currentMode: Mode,
-  profile?: Pick<UserProfile, 'profileType' | 'incomeSources' | 'typicalExpenses' | 'preferredMode'>
+  profile?: Pick<UserProfile, 'profileType' | 'incomeSources' | 'typicalExpenses' | 'preferredMode'>,
+  userCategories?: { personal: CategoryItem[]; business: CategoryItem[] }
 ): Promise<AIInterpretation> {
+  // Todas as categorias do usuário em lista plana para enviar à IA
+  const allCategoryNames = [
+    ...(userCategories?.personal ?? []).map(c => c.name),
+    ...(userCategories?.business ?? []).map(c => c.name),
+  ].filter((v, i, a) => a.indexOf(v) === i) // deduplica
+
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 7000)
@@ -176,6 +210,7 @@ export async function interpretFinancialInput(
               preferredMode: profile.preferredMode,
             }
           : undefined,
+        categories: allCategoryNames.length > 0 ? allCategoryNames : undefined,
       }),
       signal: controller.signal,
     })
@@ -184,12 +219,10 @@ export async function interpretFinancialInput(
     if (!res.ok) throw new Error(`API ${res.status}`)
     const data = await res.json()
 
-    // Garante que campos obrigatórios existem
     if (typeof data.type !== 'string' || typeof data.amount !== 'number') {
       throw new Error('Resposta inválida da IA')
     }
 
-    // Valida o mode retornado
     const mode = (data.mode === 'personal' || data.mode === 'business')
       ? data.mode as Mode
       : detectModeOverride(text, currentMode)
@@ -208,8 +241,7 @@ export async function interpretFinancialInput(
     }
   } catch (err) {
     console.warn('[interpretFinancialInput] usando fallback local:', err)
-    // Fallback silencioso para o mock local
     await new Promise(r => setTimeout(r, 300))
-    return mockInterpret(text, currentMode)
+    return mockInterpret(text, currentMode, userCategories)
   }
 }
