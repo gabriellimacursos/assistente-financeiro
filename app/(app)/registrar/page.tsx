@@ -213,7 +213,7 @@ export default function RegistrarPage() {
 
   async function handleConfirm() {
     if (!interpretation) return
-    setSaveError(null)
+    setAppError(null)
     const description = interpretation.description.trim() || pendingText.trim() || interpretation.category
     const card = selectedCardId ? cards.find(c => c.id === selectedCardId) : null
     try {
