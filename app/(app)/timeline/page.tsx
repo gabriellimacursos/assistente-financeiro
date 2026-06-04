@@ -92,10 +92,34 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
           {/* Header */}
           <div className="flex items-center justify-between pt-1">
             <h2 className="text-lg font-bold text-slate-800">Editar lançamento</h2>
-            <button onClick={onClose} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center">
-              <X className="w-5 h-5 text-slate-500" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setConfirmDel(true)}
+                className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center hover:bg-expense-100 transition-colors">
+                <Trash2 className="w-4 h-4 text-expense-500" />
+              </button>
+              <button onClick={onClose} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
           </div>
+
+          {/* Confirmação de exclusão */}
+          {confirmDel && (
+            <div className="bg-expense-50 border-2 border-expense-200 rounded-2xl p-4 space-y-3">
+              <p className="text-center text-sm font-semibold text-expense-700">Excluir este lançamento?</p>
+              <p className="text-center text-xs text-expense-500">Essa ação não pode ser desfeita.</p>
+              <div className="flex gap-2">
+                <button onClick={onDelete}
+                  className="flex-1 py-3 bg-expense-500 text-white font-semibold rounded-2xl hover:bg-expense-600 transition-colors text-sm">
+                  Sim, excluir
+                </button>
+                <button onClick={() => setConfirmDel(false)}
+                  className="flex-1 py-3 bg-white text-slate-700 font-semibold rounded-2xl border-2 border-slate-200 hover:bg-slate-50 transition-colors text-sm">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Tipo */}
           <div>
@@ -205,24 +229,6 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
             <Check className="w-5 h-5" /> Salvar alterações
           </button>
 
-          {confirmDel ? (
-            <div className="space-y-2">
-              <p className="text-center text-sm text-slate-500">Tem certeza? Isso não pode ser desfeito.</p>
-              <div className="flex gap-2">
-                <button onClick={onDelete} className="flex-1 py-3 bg-expense-500 text-white font-semibold rounded-2xl hover:bg-expense-600 transition-colors">
-                  Excluir
-                </button>
-                <button onClick={() => setConfirmDel(false)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-semibold rounded-2xl hover:bg-slate-200 transition-colors">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmDel(true)}
-              className="w-full flex items-center justify-center gap-2 text-expense-500 text-sm font-semibold py-2 hover:text-expense-600 transition-colors">
-              <Trash2 className="w-4 h-4" /> Excluir lançamento
-            </button>
-          )}
         </div>
       </div>
     </div>
