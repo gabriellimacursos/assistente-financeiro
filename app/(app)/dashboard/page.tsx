@@ -85,13 +85,19 @@ export default function DashboardPage() {
     [filtered, periodType, anchor]
   )
 
+  // Transações confirmadas (exclui pending = faturas de cartão ainda não pagas)
+  const confirmedPeriodTx = useMemo(() =>
+    periodTx.filter(t => t.status !== 'pending'),
+    [periodTx]
+  )
+
   const prevTx = useMemo(() => {
     const prev = navigatePeriod(periodType, anchor, -1)
-    return filtered.filter(t => txInPeriod(parseISO(t.date), periodType, prev))
+    return filtered.filter(t => txInPeriod(parseISO(t.date), periodType, prev) && t.status !== 'pending')
   }, [filtered, periodType, anchor])
 
-  const totalIncome = periodTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const totalExpense = periodTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const totalIncome = confirmedPeriodTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const totalExpense = confirmedPeriodTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const balance = totalIncome - totalExpense
 
   const prevIncome = prevTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
@@ -103,21 +109,23 @@ export default function DashboardPage() {
 
   const categoryData = useMemo(() => {
     const map: Record<string, number> = {}
-    periodTx.filter(t => t.type === 'expense').forEach(t => {
+    confirmedPeriodTx.filter(t => t.type === 'expense').forEach(t => {
       map[t.category] = (map[t.category] || 0) + t.amount
     })
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([name, amount]) => ({ name, amount }))
-  }, [periodTx])
+  }, [confirmedPeriodTx])
 
   const trendData = useMemo(() => {
+    const confirmedFiltered = filtered.filter(t => t.status !== 'pending')
+
     if (periodType === 'year') {
       const year = anchor.getFullYear()
       return Array.from({ length: 12 }, (_, i) => {
         const d = new Date(year, i, 1)
-        const txs = filtered.filter(t => isSameMonth(parseISO(t.date), d))
+        const txs = confirmedFiltered.filter(t => isSameMonth(parseISO(t.date), d))
         return {
           label: format(d, 'MMM', { locale: ptBR }),
           income: txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -130,7 +138,7 @@ export default function DashboardPage() {
       const weekStart = startOfWeek(anchor, { weekStartsOn: 0 })
       return Array.from({ length: 7 }, (_, i) => {
         const day = addDays(weekStart, i)
-        const txs = filtered.filter(t => isSameDay(parseISO(t.date), day))
+        const txs = confirmedFiltered.filter(t => isSameDay(parseISO(t.date), day))
         return {
           label: format(day, 'EEE', { locale: ptBR }),
           income: txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -144,7 +152,7 @@ export default function DashboardPage() {
     const map: Record<string, { income: number; expense: number; sortKey: number }> = {}
     const sixAgo = subMonths(anchor, 5)
     const endDate = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
-    filtered
+    confirmedFiltered
       .filter(t => {
         const d = parseISO(t.date)
         return d >= startOfMonth(sixAgo) && d <= endDate
@@ -164,11 +172,11 @@ export default function DashboardPage() {
 
   const incomeSources = useMemo(() => {
     const map: Record<string, number> = {}
-    periodTx.filter(t => t.type === 'income').forEach(t => {
+    confirmedPeriodTx.filter(t => t.type === 'income').forEach(t => {
       map[t.category] = (map[t.category] || 0) + t.amount
     })
     return Object.entries(map).sort((a, b) => b[1] - a[1])
-  }, [periodTx])
+  }, [confirmedPeriodTx])
 
   const periodName = { day: 'dia', week: 'semana', month: 'mês', year: 'ano' }[periodType]
 
