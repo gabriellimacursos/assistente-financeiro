@@ -3,12 +3,13 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronRight, LogOut, Plus, X, Building2, User,
-  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen,
+  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen, Settings2,
 } from 'lucide-react'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import type { Mode } from '@/types'
+import type { Mode, ProfilePermissions } from '@/types'
+import { DEFAULT_MEMBER_PERMISSIONS } from '@/types'
 
 const PROFILE_COLORS = [
   'from-primary-500 to-indigo-600',
@@ -51,6 +52,7 @@ export default function ConfiguracoesPage() {
   const [removingCat, setRemovingCat] = useState<string | null>(null)
   const [pinEditId, setPinEditId] = useState<string | null>(null)
   const [pinEditValue, setPinEditValue] = useState('')
+  const [permEditId, setPermEditId] = useState<string | null>(null)
 
   // Profile management
   const [showAddProfile, setShowAddProfile] = useState(false)
@@ -263,7 +265,7 @@ export default function ConfiguracoesPage() {
                 </div>
                 {/* Botão de PIN */}
                 <button
-                  onClick={() => { setPinEditId(pinEditId === profile.id ? null : profile.id); setPinEditValue('') }}
+                  onClick={() => { setPinEditId(pinEditId === profile.id ? null : profile.id); setPinEditValue(''); setPermEditId(null) }}
                   className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0',
                     profile.pin ? 'text-slate-600 bg-slate-100 hover:bg-slate-200' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'
                   )}
@@ -271,6 +273,18 @@ export default function ConfiguracoesPage() {
                 >
                   {profile.pin ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
                 </button>
+                {/* Botão de Permissões (somente perfis não-donos) */}
+                {!profile.isOwner && (
+                  <button
+                    onClick={() => { setPermEditId(permEditId === profile.id ? null : profile.id); setPinEditId(null) }}
+                    className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0',
+                      permEditId === profile.id ? 'text-primary-600 bg-primary-100' : 'text-slate-400 hover:text-primary-500 hover:bg-primary-50'
+                    )}
+                    title="Configurar permissões"
+                  >
+                    <Settings2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 {!profile.isOwner && (
                   removingProfile === profile.id ? (
                     <div className="flex gap-1 shrink-0">
@@ -302,6 +316,27 @@ export default function ConfiguracoesPage() {
                   )
                 )}
               </div>
+              {/* Editor de Permissões inline */}
+              {permEditId === profile.id && !profile.isOwner && (
+                <PermissionsEditor
+                  profile={profile}
+                  saving={saving}
+                  onSave={async (perms) => {
+                    setSaving(true)
+                    setDbError(null)
+                    try {
+                      await updateProfile(profile.id, { permissions: perms })
+                      setPermEditId(null)
+                    } catch {
+                      setDbError('Erro ao salvar permissões. Tente novamente.')
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                  onClose={() => setPermEditId(null)}
+                />
+              )}
+
               {/* Editor de PIN inline */}
               {pinEditId === profile.id && (
                 <div className="px-4 pb-4 pt-3 bg-slate-50 border-t border-slate-100 space-y-2">
@@ -570,6 +605,85 @@ export default function ConfiguracoesPage() {
       </div>
 
       <p className="text-center text-xs text-slate-300 pb-4">Versão 1.0.0</p>
+    </div>
+  )
+}
+
+// ─── Permissions Editor ─────────────────────────────────────────────────────
+
+const PERM_ITEMS: { key: keyof ProfilePermissions; label: string; description: string }[] = [
+  { key: 'canAddTransactions',    label: 'Registrar lançamentos',   description: 'Pode adicionar entradas e saídas' },
+  { key: 'canEditTransactions',   label: 'Editar lançamentos',      description: 'Pode alterar lançamentos existentes' },
+  { key: 'canDeleteTransactions', label: 'Excluir lançamentos',     description: 'Pode apagar lançamentos' },
+  { key: 'canManageCategories',   label: 'Gerenciar categorias',    description: 'Pode criar e remover categorias' },
+  { key: 'canManageCards',        label: 'Gerenciar cartões',       description: 'Pode adicionar, editar e remover cartões' },
+  { key: 'canManageRecurrences',  label: 'Gerenciar recorrências',  description: 'Pode criar e alterar pagamentos recorrentes' },
+]
+
+function PermissionsEditor({ profile, saving, onSave, onClose }: {
+  profile: { id: string; name: string; permissions?: ProfilePermissions }
+  saving: boolean
+  onSave: (perms: ProfilePermissions) => Promise<void>
+  onClose: () => void
+}) {
+  const [perms, setPerms] = useState<ProfilePermissions>({
+    ...DEFAULT_MEMBER_PERMISSIONS,
+    ...(profile.permissions ?? {}),
+  })
+
+  function toggle(key: keyof ProfilePermissions) {
+    setPerms(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  return (
+    <div className="px-4 pb-4 pt-3 bg-primary-50 border-t border-primary-100 space-y-3">
+      <div className="flex items-center gap-2">
+        <Shield className="w-3.5 h-3.5 text-primary-500" />
+        <p className="text-xs text-primary-700 font-semibold">Permissões de <span className="font-bold">{profile.name}</span></p>
+      </div>
+      <div className="space-y-1.5">
+        {PERM_ITEMS.map(({ key, label, description }) => (
+          <button
+            key={key}
+            onClick={() => toggle(key)}
+            className={cn(
+              'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all text-left',
+              perms[key]
+                ? 'bg-white border-primary-300 text-slate-800'
+                : 'bg-white/50 border-slate-200 text-slate-400'
+            )}
+          >
+            <div className={cn(
+              'w-10 h-5 rounded-full transition-colors relative shrink-0',
+              perms[key] ? 'bg-primary-500' : 'bg-slate-200'
+            )}>
+              <span className={cn(
+                'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform',
+                perms[key] ? 'translate-x-5' : 'translate-x-0.5'
+              )} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold leading-none">{label}</p>
+              <p className="text-[10px] mt-0.5 text-slate-400 leading-snug">{description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button
+          disabled={saving}
+          onClick={() => onSave(perms)}
+          className="flex-1 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors"
+        >
+          Salvar permissões
+        </button>
+        <button
+          onClick={onClose}
+          className="flex-1 py-2.5 bg-white text-slate-600 text-sm font-semibold rounded-xl border-2 border-slate-200 hover:bg-slate-50 transition-colors"
+        >
+          Cancelar
+        </button>
+      </div>
     </div>
   )
 }

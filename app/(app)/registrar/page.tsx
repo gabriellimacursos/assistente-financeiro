@@ -2,11 +2,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   Mic, MicOff, Check, X, RefreshCw, Building2, User,
-  ChevronRight, TrendingUp, TrendingDown, DollarSign, Send, Calendar, CreditCard, ArrowLeftRight,
+  ChevronRight, TrendingUp, TrendingDown, DollarSign, Send, Calendar, CreditCard, ArrowLeftRight, Lock,
 } from 'lucide-react'
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder'
 import { interpretFinancialInput, getCategoryOptions } from '@/lib/ai/interpreter'
-import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import { formatCurrency, formatShortDate, formatDateInput, cn } from '@/lib/utils'
 import type { AIInterpretation, Transaction, RecurrenceFrequency, Mode } from '@/types'
 import { format, parseISO } from 'date-fns'
@@ -42,6 +42,7 @@ export default function RegistrarPage() {
   const { activeMode, setActiveMode, addTransaction, addCategory, transactions, categoriesPersonal, categoriesBusiness, cards, profiles, activeProfileId } = useFinanceStore()
   const userCategories = { personal: categoriesPersonal, business: categoriesBusiness }
   const activeProfile = profiles.find(p => p.id === activeProfileId)
+  const perms = getProfilePermissions(profiles, activeProfileId)
   const voice = useVoiceRecorder()
 
   const [step, setStep] = useState<Step>('idle')
@@ -848,6 +849,22 @@ export default function RegistrarPage() {
   }
 
   // ── IDLE / LISTENING / PROCESSING ──────────────────────────────────────────
+  if (step === 'idle' && !perms.canAddTransactions) {
+    return (
+      <div className="max-w-md mx-auto px-5 flex flex-col min-h-[60vh] items-center justify-center space-y-4 pb-24">
+        <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center">
+          <Lock className="w-9 h-9 text-amber-400" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-bold text-slate-700">Sem permissão</h2>
+          <p className="text-slate-400 text-sm leading-relaxed max-w-xs">
+            Seu perfil não tem permissão para registrar lançamentos. Peça ao administrador para atualizar suas permissões em Configurações.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-md mx-auto px-5 flex flex-col min-h-screen">
 

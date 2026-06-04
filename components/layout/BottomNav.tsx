@@ -19,12 +19,14 @@ export default function BottomNav() {
   const pathname = usePathname()
   const router = useRouter()
   const [showMore, setShowMore] = useState(false)
-  const { isAdmin } = useFinanceStore()
+  const { isAdmin, profiles, activeProfileId } = useFinanceStore()
+  const activeProfile = profiles.find(p => p.id === activeProfileId)
+  const canViewAdmin = isAdmin && (activeProfile?.isOwner ?? false)
 
   const moreItems = [
     { href: '/recorrencias', label: '🔄 Recorrências' },
     { href: '/configuracoes', label: '⚙️ Configurações' },
-    ...(isAdmin ? [{ href: '/admin', label: '🛡️ Admin' }] : []),
+    ...(canViewAdmin ? [{ href: '/admin', label: '🛡️ Admin' }] : []),
   ]
 
   return (

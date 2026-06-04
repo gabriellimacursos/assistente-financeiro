@@ -21,7 +21,9 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { sidebarCollapsed: collapsed, setSidebarCollapsed, isAdmin, clearCloudSession } = useFinanceStore()
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed, isAdmin, clearCloudSession, profiles, activeProfileId } = useFinanceStore()
+  const activeProfile = profiles.find(p => p.id === activeProfileId)
+  const canViewAdmin = isAdmin && (activeProfile?.isOwner ?? false)
 
   function toggleCollapsed() {
     setSidebarCollapsed(!collapsed)
@@ -92,7 +94,7 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className={cn('border-t border-slate-100 p-2 space-y-1')}>
-        {isAdmin && (
+        {canViewAdmin && (
           <Link href="/admin" title={collapsed ? 'Admin' : undefined}
             className={cn(
               'flex items-center rounded-xl transition-all text-slate-500 hover:bg-primary-50 hover:text-primary-600 group relative',

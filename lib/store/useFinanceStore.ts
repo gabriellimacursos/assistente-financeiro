@@ -1,7 +1,14 @@
 'use client'
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase/client'
-import type { Transaction, Recurrence, ViewMode, Mode, CreditCard, CategoryItem, UserProfile } from '@/types'
+import type { Transaction, Recurrence, ViewMode, Mode, CreditCard, CategoryItem, UserProfile, ProfilePermissions } from '@/types'
+import { OWNER_PERMISSIONS, DEFAULT_MEMBER_PERMISSIONS } from '@/types'
+
+export function getProfilePermissions(profiles: UserProfile[], activeProfileId: string): ProfilePermissions {
+  const profile = profiles.find(p => p.id === activeProfileId)
+  if (!profile || profile.isOwner) return OWNER_PERMISSIONS
+  return { ...DEFAULT_MEMBER_PERMISSIONS, ...(profile.permissions ?? {}) }
+}
 
 export const DEFAULT_CATEGORIES_PERSONAL: CategoryItem[] = [
   { name: 'Alimentação',      direction: 'expense' },
@@ -120,6 +127,7 @@ function profileToDb(p: UserProfile, userId: string) {
     color: p.color,
     pin: p.pin ?? null,
     is_owner: p.isOwner,
+    permissions: p.permissions ?? null,
     profile_type: p.profileType ?? null,
     income_sources: p.incomeSources ?? [],
     typical_expenses: p.typicalExpenses ?? [],
@@ -136,6 +144,7 @@ function profileFromDb(row: any): UserProfile {
     color: row.color,
     pin: row.pin ?? undefined,
     isOwner: !!row.is_owner,
+    permissions: row.permissions ?? undefined,
     created_at: row.created_at,
     profileType: row.profile_type ?? undefined,
     incomeSources: row.income_sources ?? [],

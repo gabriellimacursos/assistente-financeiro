@@ -5,7 +5,7 @@ import {
   Pencil, Check, Building2, User, Plus, Search, Loader2, Tag,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import ModeToggle from '@/components/shared/ModeToggle'
 import { formatCurrency, formatDate, formatTime, cn } from '@/lib/utils'
 import { parseISO, format, startOfMonth, endOfMonth, subMonths, endOfDay, addDays } from 'date-fns'
@@ -45,9 +45,11 @@ interface EditModalProps {
   categoriesPersonal: any[]
   categoriesBusiness: any[]
   addCategory: (name: string, mode: Mode, direction: 'income' | 'expense' | 'both') => void
+  canEdit?: boolean
+  canDelete?: boolean
 }
 
-function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categoriesBusiness, addCategory }: EditModalProps) {
+function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categoriesBusiness, addCategory, canEdit = true, canDelete = true }: EditModalProps) {
   const [description, setDescription] = useState(tx.description)
   const [amount, setAmount]           = useState(tx.amount.toString())
   const [type, setType]               = useState(tx.type)
@@ -107,17 +109,24 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
         <div className="px-5 pb-8 space-y-5">
           {/* Header */}
           <div className="flex items-center justify-between pt-1">
-            <h2 className="text-lg font-bold text-slate-800">Editar lançamento</h2>
+            <h2 className="text-lg font-bold text-slate-800">{canEdit ? 'Editar lançamento' : 'Visualizar lançamento'}</h2>
             <div className="flex items-center gap-2">
-              <button onClick={() => setConfirmDel(true)} disabled={saving || deleting}
-                className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center hover:bg-expense-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                <Trash2 className="w-4 h-4 text-expense-500" />
-              </button>
+              {canDelete && (
+                <button onClick={() => setConfirmDel(true)} disabled={saving || deleting}
+                  className="w-9 h-9 bg-expense-50 rounded-xl flex items-center justify-center hover:bg-expense-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Trash2 className="w-4 h-4 text-expense-500" />
+                </button>
+              )}
               <button onClick={onClose} disabled={saving || deleting} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
                 <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
           </div>
+          {!canEdit && !canDelete && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+              <span className="text-xs text-amber-700 font-medium">Seu perfil não tem permissão para editar ou excluir lançamentos.</span>
+            </div>
+          )}
 
           {/* Confirmação de exclusão */}
           {confirmDel && (
@@ -241,13 +250,15 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
           </div>
 
           {/* Botões */}
-          <button onClick={handleSave} disabled={saving || deleting}
-            className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4 disabled:opacity-70 disabled:cursor-not-allowed">
-            {saving
-              ? <><Loader2 className="w-5 h-5 animate-spin" /> Salvando…</>
-              : <><Check className="w-5 h-5" /> Salvar alterações</>
-            }
-          </button>
+          {canEdit && (
+            <button onClick={handleSave} disabled={saving || deleting}
+              className="btn-primary w-full flex items-center justify-center gap-2 text-base py-4 disabled:opacity-70 disabled:cursor-not-allowed">
+              {saving
+                ? <><Loader2 className="w-5 h-5 animate-spin" /> Salvando…</>
+                : <><Check className="w-5 h-5" /> Salvar alterações</>
+              }
+            </button>
+          )}
 
         </div>
       </div>
@@ -262,7 +273,9 @@ export default function TimelinePage() {
     transactions, viewMode, setViewMode,
     removeTransaction, updateTransaction,
     categoriesPersonal, categoriesBusiness, addCategory,
+    profiles, activeProfileId,
   } = useFinanceStore()
+  const perms = getProfilePermissions(profiles, activeProfileId)
 
   const [typeFilter, setTypeFilter]         = useState<FilterType>('all')
   const [selectedPeriod, setSelectedPeriod] = useState('month')
@@ -641,6 +654,8 @@ export default function TimelinePage() {
           categoriesPersonal={categoriesPersonal}
           categoriesBusiness={categoriesBusiness}
           addCategory={addCategory}
+          canEdit={perms.canEditTransactions}
+          canDelete={perms.canDeleteTransactions}
         />
       )}
 

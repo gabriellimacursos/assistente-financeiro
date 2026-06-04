@@ -5,7 +5,7 @@ import {
   RefreshCw, TrendingUp, TrendingDown, Pause, Play, Trash2,
   Plus, Mic, X, Check, Building2, User, ChevronRight,
 } from 'lucide-react'
-import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import { formatCurrency, formatShortDate, formatDateInput, RECURRENCE_LABELS, cn } from '@/lib/utils'
 import type { Recurrence, RecurrenceFrequency, Mode } from '@/types'
 
@@ -38,7 +38,8 @@ function emptyRecurrence(mode: Mode): Omit<Recurrence, 'id' | 'created_at'> {
 
 export default function RecorrenciasPage() {
   const router = useRouter()
-  const { recurrences, toggleRecurrence, removeRecurrence, addRecurrence, updateRecurrence, activeMode, categoriesPersonal, categoriesBusiness } = useFinanceStore()
+  const { recurrences, toggleRecurrence, removeRecurrence, addRecurrence, updateRecurrence, activeMode, categoriesPersonal, categoriesBusiness, profiles, activeProfileId } = useFinanceStore()
+  const canManage = getProfilePermissions(profiles, activeProfileId).canManageRecurrences
   // Categorias filtradas por modo e tipo do formulário atual
   const getFormCategories = (mode: Mode, type: 'income' | 'expense') => {
     const raw = mode === 'business' ? categoriesBusiness : categoriesPersonal
@@ -124,13 +125,15 @@ export default function RecorrenciasPage() {
           <h1 className="text-2xl font-bold text-slate-800">Recorrências</h1>
           <p className="text-slate-500 text-sm">Pagamentos e recebimentos fixos</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 btn-primary px-4 py-2.5 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nova</span>
-        </button>
+        {canManage && (
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 btn-primary px-4 py-2.5 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nova</span>
+          </button>
+        )}
       </div>
 
       {/* Summary */}
@@ -166,6 +169,7 @@ export default function RecorrenciasPage() {
                 confirmDelete={confirmDelete === r.id}
                 onConfirmDelete={async () => { try { await removeRecurrence(r.id); setConfirmDelete(null) } catch { setCardError('Erro ao remover. Tente novamente.') } }}
                 onCancelDelete={() => setConfirmDelete(null)}
+                canManage={canManage}
               />
             ))}
           </div>
@@ -185,6 +189,7 @@ export default function RecorrenciasPage() {
                 confirmDelete={confirmDelete === r.id}
                 onConfirmDelete={async () => { try { await removeRecurrence(r.id); setConfirmDelete(null) } catch { setCardError('Erro ao remover. Tente novamente.') } }}
                 onCancelDelete={() => setConfirmDelete(null)}
+                canManage={canManage}
               />
             ))}
           </div>
@@ -196,19 +201,23 @@ export default function RecorrenciasPage() {
           <div className="text-5xl mb-3">🔄</div>
           <p className="text-slate-500 font-medium mb-1">Nenhuma recorrência ainda</p>
           <p className="text-slate-400 text-sm mb-5">Crie manualmente ou registre um gasto recorrente por voz</p>
-          <button onClick={openCreate} className="btn-primary flex items-center gap-2 mx-auto">
-            <Plus className="w-4 h-4" /> Criar agora
-          </button>
+          {canManage && (
+            <button onClick={openCreate} className="btn-primary flex items-center gap-2 mx-auto">
+              <Plus className="w-4 h-4" /> Criar agora
+            </button>
+          )}
         </div>
       )}
 
       {/* FAB mobile */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
-        <button onClick={openCreate}
-          className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform">
-          <Plus className="w-6 h-6" />
-        </button>
-      </div>
+      {canManage && (
+        <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
+          <button onClick={openCreate}
+            className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform">
+            <Plus className="w-6 h-6" />
+          </button>
+        </div>
+      )}
 
       {/* ── Modal criar / editar ── */}
       {modalMode && (
@@ -347,7 +356,7 @@ export default function RecorrenciasPage() {
   )
 }
 
-function RecurrenceCard({ recurrence: r, onEdit, onToggle, onDelete, confirmDelete, onConfirmDelete, onCancelDelete }: {
+function RecurrenceCard({ recurrence: r, onEdit, onToggle, onDelete, confirmDelete, onConfirmDelete, onCancelDelete, canManage }: {
   recurrence: Recurrence
   onEdit: () => void
   onToggle: () => void
@@ -355,6 +364,7 @@ function RecurrenceCard({ recurrence: r, onEdit, onToggle, onDelete, confirmDele
   confirmDelete: boolean
   onConfirmDelete: () => void
   onCancelDelete: () => void
+  canManage: boolean
 }) {
   return (
     <div className="card p-4 flex items-center gap-3 group hover:shadow-card-hover transition-all">
@@ -383,7 +393,7 @@ function RecurrenceCard({ recurrence: r, onEdit, onToggle, onDelete, confirmDele
         {formatCurrency(r.amount)}
       </p>
 
-      {confirmDelete ? (
+      {canManage && (confirmDelete ? (
         <div className="flex gap-1 shrink-0">
           <button onClick={onConfirmDelete} className="w-8 h-8 bg-expense-500 rounded-xl flex items-center justify-center">
             <Trash2 className="w-4 h-4 text-white" />
@@ -405,7 +415,7 @@ function RecurrenceCard({ recurrence: r, onEdit, onToggle, onDelete, confirmDele
             <Trash2 className="w-4 h-4 text-slate-400 hover:text-expense-400" />
           </button>
         </div>
-      )}
+      ))}
     </div>
   )
 }

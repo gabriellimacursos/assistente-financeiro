@@ -80,6 +80,33 @@ export type ViewMode = 'personal' | 'business' | 'all'
 
 export type ProfileType = 'entrepreneur' | 'employee' | 'freelancer' | 'investor' | 'other'
 
+export interface ProfilePermissions {
+  canAddTransactions: boolean
+  canEditTransactions: boolean
+  canDeleteTransactions: boolean
+  canManageCategories: boolean
+  canManageCards: boolean
+  canManageRecurrences: boolean
+}
+
+export const OWNER_PERMISSIONS: ProfilePermissions = {
+  canAddTransactions: true,
+  canEditTransactions: true,
+  canDeleteTransactions: true,
+  canManageCategories: true,
+  canManageCards: true,
+  canManageRecurrences: true,
+}
+
+export const DEFAULT_MEMBER_PERMISSIONS: ProfilePermissions = {
+  canAddTransactions: true,
+  canEditTransactions: false,
+  canDeleteTransactions: false,
+  canManageCategories: false,
+  canManageCards: false,
+  canManageRecurrences: false,
+}
+
 export interface UserProfile {
   id: string
   name: string
@@ -88,6 +115,7 @@ export interface UserProfile {
   pin?: string
   isOwner: boolean
   created_at: string
+  permissions?: ProfilePermissions
   // Contexto financeiro para alimentar a IA
   profileType?: ProfileType
   incomeSources?: string[]       // ex: ['Curso Online', 'Assistência Técnica']

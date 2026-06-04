@@ -4,7 +4,7 @@ import {
   Plus, X, Check, TrendingUp, TrendingDown, CreditCard,
   Building2, User, Trash2, Edit2, ChevronLeft,
 } from 'lucide-react'
-import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import { formatCurrency, formatTime, cn } from '@/lib/utils'
 import type { CreditCard as CC, Mode } from '@/types'
 import { isSameMonth } from 'date-fns'
@@ -25,7 +25,9 @@ function emptyCard(mode: Mode): Omit<CC, 'id' | 'created_at'> {
 }
 
 export default function CartoesPage() {
-  const { cards, addCard, updateCard, removeCard, transactions, activeMode } = useFinanceStore()
+  const { cards, addCard, updateCard, removeCard, transactions, activeMode, profiles, activeProfileId } = useFinanceStore()
+  const perms = getProfilePermissions(profiles, activeProfileId)
+  const canManage = perms.canManageCards
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editingCard, setEditingCard] = useState<CC | null>(null)
@@ -223,10 +225,12 @@ export default function CartoesPage() {
           <h1 className="text-2xl font-bold text-slate-800">Cartões</h1>
           <p className="text-slate-500 text-sm">Controle por cartão de crédito</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 btn-primary px-4 py-2.5 text-sm">
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Novo cartão</span>
-        </button>
+        {canManage && (
+          <button onClick={openCreate} className="flex items-center gap-2 btn-primary px-4 py-2.5 text-sm">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Novo cartão</span>
+          </button>
+        )}
       </div>
 
       {/* Total this month */}
@@ -244,9 +248,11 @@ export default function CartoesPage() {
           <div className="text-5xl mb-3">💳</div>
           <p className="text-slate-500 font-medium mb-1">Nenhum cartão ainda</p>
           <p className="text-slate-400 text-sm mb-5">Adicione seus cartões para controlar os gastos por cartão</p>
-          <button onClick={openCreate} className="btn-primary flex items-center gap-2 mx-auto">
-            <Plus className="w-4 h-4" /> Adicionar cartão
-          </button>
+          {canManage && (
+            <button onClick={openCreate} className="btn-primary flex items-center gap-2 mx-auto">
+              <Plus className="w-4 h-4" /> Adicionar cartão
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -299,7 +305,7 @@ export default function CartoesPage() {
                 </button>
 
                 {/* Action buttons */}
-                <div className="absolute top-3 right-3 flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10">
+                {canManage && <div className="absolute top-3 right-3 flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10">
                   <button onClick={e => { e.stopPropagation(); openEdit(card) }}
                     className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors">
                     <Edit2 className="w-3.5 h-3.5 text-white" />
@@ -335,7 +341,7 @@ export default function CartoesPage() {
                       <Trash2 className="w-3.5 h-3.5 text-white" />
                     </button>
                   )}
-                </div>
+                </div>}
               </div>
             )
           })}
@@ -343,12 +349,14 @@ export default function CartoesPage() {
       )}
 
       {/* FAB mobile */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
-        <button onClick={openCreate}
-          className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform">
-          <Plus className="w-6 h-6" />
-        </button>
-      </div>
+      {canManage && (
+        <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
+          <button onClick={openCreate}
+            className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform">
+            <Plus className="w-6 h-6" />
+          </button>
+        </div>
+      )}
 
       {/* ── Modal add/edit card ── */}
       {showModal && (

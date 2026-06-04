@@ -33,7 +33,7 @@ let toastId = 0
 
 export default function AdminPage() {
   const router = useRouter()
-  const { isAdmin, syncStatus } = useFinanceStore()
+  const { isAdmin, syncStatus, profiles, activeProfileId } = useFinanceStore()
   const [users, setUsers] = useState<RegistryUser[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -44,9 +44,11 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (syncStatus === 'loading') return
-    if (syncStatus === 'ready' && !isAdmin) { router.replace('/dashboard'); return }
-    if (syncStatus === 'ready' && isAdmin) loadUsers()
-  }, [syncStatus, isAdmin, router])
+    const activeProfile = profiles.find(p => p.id === activeProfileId)
+    const canAccess = isAdmin && (activeProfile?.isOwner ?? false)
+    if (syncStatus === 'ready' && !canAccess) { router.replace('/dashboard'); return }
+    if (syncStatus === 'ready' && canAccess) loadUsers()
+  }, [syncStatus, isAdmin, router, profiles, activeProfileId])
 
   const addToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     const id = ++toastId
