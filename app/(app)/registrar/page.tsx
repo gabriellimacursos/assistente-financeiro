@@ -221,7 +221,7 @@ export default function RegistrarPage() {
     try {
       // Criar recorrência primeiro, antes da transação
       let recurrenceId: string | undefined
-      if (isRecurring && recurrenceChoice && recurrenceChoice !== 'none') {
+      if (isRecurring && recurrenceChoice) {
         recurrenceId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
           : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
