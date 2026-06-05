@@ -13,7 +13,7 @@ import ErrorBanner from '@/components/shared/ErrorBanner'
 import { formatError } from '@/lib/errors'
 import type { ErrorCode } from '@/lib/errors'
 import type { AIInterpretation, Transaction, RecurrenceFrequency, Mode } from '@/types'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, addMonths, addWeeks, addYears } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 type Step = 'idle' | 'listening' | 'processing' | 'clarifying' | 'confirming' | 'recurrence' | 'saved' | 'transfer'
@@ -43,7 +43,7 @@ const RECURRENCE_OPTIONS: { label: string; value: RecurrenceFrequency | 'none' }
 ]
 
 export default function RegistrarPage() {
-  const { activeMode, setActiveMode, addTransaction, addCategory, transactions, categoriesPersonal, categoriesBusiness, cards, profiles, activeProfileId } = useFinanceStore()
+  const { activeMode, setActiveMode, addTransaction, addRecurrence, addCategory, transactions, categoriesPersonal, categoriesBusiness, cards, profiles, activeProfileId } = useFinanceStore()
   const userCategories = { personal: categoriesPersonal, business: categoriesBusiness }
   const activeProfile = profiles.find(p => p.id === activeProfileId)
   const perms = getProfilePermissions(profiles, activeProfileId)
@@ -216,7 +216,41 @@ export default function RegistrarPage() {
     setAppError(null)
     const description = interpretation.description.trim() || pendingText.trim() || interpretation.category
     const card = selectedCardId ? cards.find(c => c.id === selectedCardId) : null
+    const isRecurring = recurrenceChoice !== null && recurrenceChoice !== 'none'
+
     try {
+      // Criar recorrência primeiro, antes da transação
+      let recurrenceId: string | undefined
+      if (isRecurring && recurrenceChoice && recurrenceChoice !== 'none') {
+        recurrenceId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+              const r = (Math.random() * 16) | 0
+              return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+            })
+
+        const txDate = parseISO(selectedDate + 'T12:00:00')
+        const nextDate =
+          recurrenceChoice === 'monthly'  ? addMonths(txDate, 1) :
+          recurrenceChoice === 'weekly'   ? addWeeks(txDate, 1)  :
+          recurrenceChoice === 'biweekly' ? addWeeks(txDate, 2)  :
+          recurrenceChoice === 'yearly'   ? addYears(txDate, 1)  :
+                                            addMonths(txDate, 1)
+
+        await addRecurrence({
+          id: recurrenceId,
+          title: description,
+          type: interpretation.type,
+          mode: interpretation.mode,
+          amount: interpretation.amount,
+          category: interpretation.category,
+          frequency: recurrenceChoice,
+          next_date: format(nextDate, 'yyyy-MM-dd'),
+          active: true,
+          created_at: new Date().toISOString(),
+        })
+      }
+
       if (installmentCount > 1 && card?.dueDay) {
         const perAmount = Math.round((interpretation.amount / installmentCount) * 100) / 100
         for (let i = 0; i < installmentCount; i++) {
@@ -248,7 +282,8 @@ export default function RegistrarPage() {
           description,
           original_text: pendingText,
           date: selectedDate + 'T' + new Date().toTimeString().slice(0, 8),
-          is_recurring: recurrenceChoice !== null && recurrenceChoice !== 'none',
+          is_recurring: isRecurring,
+          recurrence_id: recurrenceId,
           card_id: selectedCardId || undefined,
           profile_id: activeProfileId,
           profile_name: activeProfile?.name,
@@ -256,6 +291,7 @@ export default function RegistrarPage() {
           created_at: new Date().toISOString(),
         })
       }
+
       setStep('saved')
       setTimeout(() => {
         voice.reset()
