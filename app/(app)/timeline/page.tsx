@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import {
   TrendingUp, TrendingDown, Trash2, Mic, Calendar, ChevronDown, X,
-  Pencil, Check, Building2, User, Plus, Search, Loader2, Tag,
+  Pencil, Check, Building2, User, Plus, Search, Loader2, Tag, CreditCard,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
@@ -14,7 +14,7 @@ import type { ErrorCode } from '@/lib/errors'
 import { formatCurrency, formatDate, formatTime, cn } from '@/lib/utils'
 import { parseISO, format, startOfMonth, endOfMonth, subMonths, endOfDay, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import type { ViewMode, Transaction, Mode } from '@/types'
+import type { ViewMode, Transaction, Mode, CreditCard as CC } from '@/types'
 
 type FilterType = 'all' | 'income' | 'expense'
 
@@ -48,18 +48,20 @@ interface EditModalProps {
   onDelete: () => Promise<void>
   categoriesPersonal: any[]
   categoriesBusiness: any[]
+  cards: CC[]
   addCategory: (name: string, mode: Mode, direction: 'income' | 'expense' | 'both') => void
   canEdit?: boolean
   canDelete?: boolean
 }
 
-function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categoriesBusiness, addCategory, canEdit = true, canDelete = true }: EditModalProps) {
+function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categoriesBusiness, cards, addCategory, canEdit = true, canDelete = true }: EditModalProps) {
   const [description, setDescription] = useState(tx.description)
   const [amount, setAmount]           = useState(tx.amount.toString())
   const [type, setType]               = useState(tx.type)
   const [mode, setMode]               = useState(tx.mode)
   const [category, setCategory]       = useState(tx.category)
   const [date, setDate]               = useState(tx.date.split('T')[0])
+  const [cardId, setCardId]           = useState<string | null>(tx.card_id ?? null)
   const [confirmDel, setConfirmDel]   = useState(false)
   const [newCatInput, setNewCatInput] = useState('')
   const [newCatDir, setNewCatDir]     = useState<'income' | 'expense' | 'both'>(tx.type)
@@ -77,7 +79,8 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
     if (!description.trim() || isNaN(num) || num <= 0) return
     setSaving(true)
     try {
-      await onSave({ description: description.trim(), amount: num, type, mode, category, date: date + 'T' + tx.date.split('T')[1] })
+      const status = cardId ? 'pending' : 'confirmed'
+      await onSave({ description: description.trim(), amount: num, type, mode, category, date: date + 'T' + tx.date.split('T')[1], card_id: cardId ?? undefined, status })
     } finally {
       setSaving(false)
     }
@@ -248,6 +251,35 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
             </div>
           </div>
 
+          {/* Cartão / Pagamento */}
+          {cards.length > 0 && (
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Forma de pagamento</label>
+              <div className="space-y-1.5">
+                <button
+                  onClick={() => setCardId(null)}
+                  className={cn('w-full px-4 py-3 rounded-2xl text-left font-semibold text-sm border-2 transition-all flex items-center gap-2',
+                    !cardId ? 'bg-slate-100 border-slate-400 text-slate-800' : 'border-slate-200 text-slate-500 hover:border-slate-300')}
+                >
+                  💵 Dinheiro / PIX
+                </button>
+                {cards.map(card => (
+                  <button key={card.id}
+                    onClick={() => setCardId(card.id)}
+                    className={cn('w-full px-4 py-3 rounded-2xl text-left font-semibold text-sm border-2 transition-all flex items-center justify-between',
+                      cardId === card.id ? 'bg-primary-50 border-primary-400 text-primary-700' : 'border-slate-200 text-slate-700 hover:border-primary-300')}
+                  >
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 shrink-0" />
+                      {card.name}{card.lastDigits ? ` ••${card.lastDigits}` : ''}
+                    </span>
+                    <span className="text-xs text-slate-400">{card.mode === 'business' ? 'Empresa' : 'Pessoal'}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Data */}
           <div>
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Data</label>
@@ -282,7 +314,7 @@ export default function TimelinePage() {
     transactions, viewMode, setViewMode,
     removeTransaction, updateTransaction,
     categoriesPersonal, categoriesBusiness, addCategory,
-    profiles, activeProfileId,
+    cards, profiles, activeProfileId,
   } = useFinanceStore()
   const perms = getProfilePermissions(profiles, activeProfileId)
 
@@ -683,6 +715,7 @@ export default function TimelinePage() {
           }}
           categoriesPersonal={categoriesPersonal}
           categoriesBusiness={categoriesBusiness}
+          cards={cards}
           addCategory={addCategory}
           canEdit={perms.canEditTransactions}
           canDelete={perms.canDeleteTransactions}

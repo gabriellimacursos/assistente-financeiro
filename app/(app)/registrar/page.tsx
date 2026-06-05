@@ -918,7 +918,7 @@ export default function RegistrarPage() {
       <div className="pt-8 pb-5 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-1.5">
-            <h1 className="text-xl font-bold text-slate-800">O que aconteceu?</h1>
+            <h1 className="text-xl font-bold text-slate-800">Novo lançamento</h1>
             <HelpTooltip id="registrar.text-input" />
           </div>
           {activeProfile && (
