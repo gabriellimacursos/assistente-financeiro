@@ -74,7 +74,15 @@ export default function RegistrarPage() {
     const due = cardNextDueDate(card)
     if (due) setSelectedDate(due)
   }, [selectedCardId, cards])
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-resize do textarea conforme texto cresce
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [textInput])
 
   // Sugestões inteligentes baseadas no histórico
   const smartSuggestions = useMemo(() => {
@@ -947,21 +955,28 @@ export default function RegistrarPage() {
 
       {/* ── Input principal com microfone integrado ── */}
       <div className={cn(
-        'relative flex items-center border-2 rounded-2xl transition-all duration-200 bg-white',
+        'relative flex items-end border-2 rounded-2xl transition-all duration-200 bg-white',
         isListening
           ? 'border-expense-400 shadow-[0_0_0_4px_rgba(244,63,94,0.1)]'
           : isProcessing
           ? 'border-primary-300 shadow-[0_0_0_4px_rgba(99,102,241,0.08)]'
           : 'border-slate-200 focus-within:border-primary-400 focus-within:shadow-[0_0_0_4px_rgba(99,102,241,0.08)]'
       )}>
-        <input
+        <textarea
           ref={inputRef}
           value={textInput}
-          onChange={e => !isListening && !isProcessing && setTextInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !isListening && !isProcessing && handleSubmit()}
+          onChange={e => { if (!isListening && !isProcessing) setTextInput(e.target.value) }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey && !isListening && !isProcessing) {
+              e.preventDefault()
+              handleSubmit()
+            }
+          }}
           placeholder={isListening ? 'Ouvindo…' : isProcessing ? 'Interpretando…' : 'Ex: gastei 80 de gasolina'}
           readOnly={isListening || isProcessing}
-          className="flex-1 px-4 py-4 text-sm bg-transparent outline-none text-slate-800 placeholder-slate-400 min-w-0"
+          rows={1}
+          className="flex-1 px-4 py-4 text-sm bg-transparent outline-none text-slate-800 placeholder-slate-400 min-w-0 resize-none overflow-hidden leading-snug"
+          style={{ minHeight: '52px' }}
         />
 
         <div className="flex items-center gap-1 pr-2 shrink-0">

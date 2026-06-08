@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import {
   TrendingUp, TrendingDown, Trash2, Mic, Calendar, ChevronDown, X,
-  Pencil, Check, Building2, User, Plus, Search, Loader2, Tag, CreditCard,
+  Pencil, Check, Building2, User, Plus, Search, Loader2, Tag, CreditCard, RefreshCw,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
@@ -12,11 +12,31 @@ import ErrorBanner from '@/components/shared/ErrorBanner'
 import { formatError } from '@/lib/errors'
 import type { ErrorCode } from '@/lib/errors'
 import { formatCurrency, formatDate, formatTime, cn } from '@/lib/utils'
-import { parseISO, format, startOfMonth, endOfMonth, subMonths, endOfDay, addDays } from 'date-fns'
+import { parseISO, format, startOfMonth, endOfMonth, subMonths, endOfDay, addDays, addMonths, addWeeks, addYears } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import type { ViewMode, Transaction, Mode, CreditCard as CC } from '@/types'
+import type { ViewMode, Transaction, Mode, CreditCard as CC, Recurrence, RecurrenceFrequency } from '@/types'
 
 type FilterType = 'all' | 'income' | 'expense'
+
+function cardNextDueDate(card: { closingDay?: number; dueDay?: number }, monthOffset = 0): string {
+  if (!card.dueDay) return ''
+  const today = new Date()
+  let month = today.getMonth()
+  let year  = today.getFullYear()
+  const cutoff = card.closingDay ?? card.dueDay
+  if (today.getDate() >= cutoff) month += 1
+  month += monthOffset
+  while (month > 11) { month -= 12; year++ }
+  const d = new Date(year, month, card.dueDay)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const RECURRENCE_OPTIONS: { label: string; value: RecurrenceFrequency }[] = [
+  { label: '🔁 Todo mês',       value: 'monthly'  },
+  { label: '📅 Toda semana',    value: 'weekly'   },
+  { label: '⏱ A cada 15 dias', value: 'biweekly' },
+  { label: '📆 Todo ano',       value: 'yearly'   },
+]
 
 interface PeriodOption {
   label: string
@@ -50,23 +70,29 @@ interface EditModalProps {
   categoriesBusiness: any[]
   cards: CC[]
   addCategory: (name: string, mode: Mode, direction: 'income' | 'expense' | 'both') => void
+  addTransaction: (t: Transaction) => Promise<void>
+  removeTransaction: (id: string) => Promise<void>
+  addRecurrence: (r: Recurrence) => Promise<void>
   canEdit?: boolean
   canDelete?: boolean
 }
 
-function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categoriesBusiness, cards, addCategory, canEdit = true, canDelete = true }: EditModalProps) {
-  const [description, setDescription] = useState(tx.description)
-  const [amount, setAmount]           = useState(tx.amount.toString())
-  const [type, setType]               = useState(tx.type)
-  const [mode, setMode]               = useState(tx.mode)
-  const [category, setCategory]       = useState(tx.category)
-  const [date, setDate]               = useState(tx.date.split('T')[0])
-  const [cardId, setCardId]           = useState<string | null>(tx.card_id ?? null)
-  const [confirmDel, setConfirmDel]   = useState(false)
-  const [newCatInput, setNewCatInput] = useState('')
-  const [newCatDir, setNewCatDir]     = useState<'income' | 'expense' | 'both'>(tx.type)
-  const [saving, setSaving]           = useState(false)
-  const [deleting, setDeleting]       = useState(false)
+function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categoriesBusiness, cards, addCategory, addTransaction, removeTransaction, addRecurrence, canEdit = true, canDelete = true }: EditModalProps) {
+  const [description, setDescription]     = useState(tx.description)
+  const [amount, setAmount]               = useState(tx.amount.toString())
+  const [type, setType]                   = useState(tx.type)
+  const [mode, setMode]                   = useState(tx.mode)
+  const [category, setCategory]           = useState(tx.category)
+  const [date, setDate]                   = useState(tx.date.split('T')[0])
+  const [cardId, setCardId]               = useState<string | null>(tx.card_id ?? null)
+  const [installmentCount, setInstallmentCount] = useState(1)
+  const [isRecurring, setIsRecurring]     = useState(tx.is_recurring)
+  const [recurrenceFreq, setRecurrenceFreq] = useState<RecurrenceFrequency>('monthly')
+  const [confirmDel, setConfirmDel]       = useState(false)
+  const [newCatInput, setNewCatInput]     = useState('')
+  const [newCatDir, setNewCatDir]         = useState<'income' | 'expense' | 'both'>(tx.type)
+  const [saving, setSaving]               = useState(false)
+  const [deleting, setDeleting]           = useState(false)
 
   const rawCats = mode === 'business' ? categoriesBusiness : categoriesPersonal
   const cats = rawCats
@@ -79,8 +105,76 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
     if (!description.trim() || isNaN(num) || num <= 0) return
     setSaving(true)
     try {
+      // Parcelamento: remove original e cria N lançamentos
+      if (installmentCount > 1 && cardId) {
+        const card = cards.find(c => c.id === cardId)
+        if (card?.dueDay) {
+          const perAmount = Math.round((num / installmentCount) * 100) / 100
+          await removeTransaction(tx.id)
+          for (let i = 0; i < installmentCount; i++) {
+            const dueDate = cardNextDueDate(card, i)
+            await addTransaction({
+              id: `${Date.now()}_p${i}_${Math.random().toString(36).slice(2)}`,
+              type,
+              mode,
+              amount: perAmount,
+              category,
+              description: `${description.trim()} (${i + 1}/${installmentCount})`,
+              date: dueDate + 'T00:00:00',
+              is_recurring: false,
+              card_id: cardId,
+              profile_id: tx.profile_id,
+              profile_name: tx.profile_name,
+              status: 'pending',
+              created_at: new Date().toISOString(),
+            })
+          }
+          onClose()
+          return
+        }
+      }
+
+      // Recorrência nova: cria registro na tabela recurrences
+      let recurrenceId = tx.recurrence_id
+      if (isRecurring && !tx.is_recurring) {
+        const newId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+        const txDate = parseISO(date + 'T12:00:00')
+        const nextDate =
+          recurrenceFreq === 'monthly'  ? addMonths(txDate, 1) :
+          recurrenceFreq === 'weekly'   ? addWeeks(txDate, 1)  :
+          recurrenceFreq === 'biweekly' ? addWeeks(txDate, 2)  :
+          recurrenceFreq === 'yearly'   ? addYears(txDate, 1)  :
+                                          addMonths(txDate, 1)
+        await addRecurrence({
+          id: newId,
+          title: description.trim(),
+          type,
+          mode,
+          amount: num,
+          category,
+          frequency: recurrenceFreq,
+          next_date: format(nextDate, 'yyyy-MM-dd'),
+          active: true,
+          created_at: new Date().toISOString(),
+        })
+        recurrenceId = newId
+      }
+
       const status = cardId ? 'pending' : 'confirmed'
-      await onSave({ description: description.trim(), amount: num, type, mode, category, date: date + 'T' + tx.date.split('T')[1], card_id: cardId ?? undefined, status })
+      await onSave({
+        description: description.trim(),
+        amount: num,
+        type,
+        mode,
+        category,
+        date: date + 'T' + tx.date.split('T')[1],
+        card_id: cardId ?? undefined,
+        status,
+        is_recurring: isRecurring,
+        recurrence_id: recurrenceId,
+      })
     } finally {
       setSaving(false)
     }
@@ -290,6 +384,60 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
             </div>
           </div>
 
+          {/* Parcelas — visível quando cartão selecionado */}
+          {cardId && type === 'expense' && (
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Parcelas</label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[1, 2, 3, 4, 6, 8, 10, 12, 18, 24].map(n => (
+                  <button key={n} onClick={() => setInstallmentCount(n)}
+                    className={cn('py-2.5 rounded-xl text-xs font-semibold border-2 transition-all',
+                      installmentCount === n ? 'bg-primary-50 border-primary-400 text-primary-700' : 'border-slate-200 text-slate-600 hover:border-primary-300')}>
+                    {n === 1 ? '1x' : `${n}x`}
+                  </button>
+                ))}
+              </div>
+              {installmentCount > 1 && (
+                <div className="mt-2 p-3 bg-amber-50 rounded-2xl border border-amber-200 space-y-1">
+                  <p className="text-xs font-semibold text-amber-700">Parcelamento em {installmentCount}x</p>
+                  <p className="text-xs text-amber-600">
+                    {installmentCount}x de {formatCurrency(parseFloat(amount.replace(',', '.') || '0') / installmentCount)} · Este lançamento será substituído pelas parcelas.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Recorrência */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <RefreshCw className="w-3.5 h-3.5" /> Recorrência
+              </label>
+              <button
+                onClick={() => setIsRecurring(v => !v)}
+                className={cn('relative w-10 h-5 rounded-full transition-colors shrink-0',
+                  isRecurring ? 'bg-primary-500' : 'bg-slate-300')}
+              >
+                <span className={cn('absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all',
+                  isRecurring ? 'left-5' : 'left-0.5')} />
+              </button>
+            </div>
+            {isRecurring && (
+              <div className="grid grid-cols-2 gap-1.5">
+                {RECURRENCE_OPTIONS.map(opt => (
+                  <button key={opt.value} onClick={() => setRecurrenceFreq(opt.value)}
+                    className={cn('py-2.5 px-3 rounded-xl border-2 text-xs font-semibold text-left transition-all',
+                      recurrenceFreq === opt.value
+                        ? 'bg-primary-50 border-primary-400 text-primary-700'
+                        : 'border-slate-200 text-slate-600 hover:border-primary-300')}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Botões */}
           {canEdit && (
             <button onClick={handleSave} disabled={saving || deleting}
@@ -312,9 +460,9 @@ export default function TimelinePage() {
   const router = useRouter()
   const {
     transactions, viewMode, setViewMode,
-    removeTransaction, updateTransaction,
+    removeTransaction, updateTransaction, addTransaction,
     categoriesPersonal, categoriesBusiness, addCategory,
-    cards, profiles, activeProfileId,
+    cards, profiles, activeProfileId, addRecurrence,
   } = useFinanceStore()
   const perms = getProfilePermissions(profiles, activeProfileId)
 
@@ -717,6 +865,9 @@ export default function TimelinePage() {
           categoriesBusiness={categoriesBusiness}
           cards={cards}
           addCategory={addCategory}
+          addTransaction={addTransaction}
+          removeTransaction={removeTransaction}
+          addRecurrence={addRecurrence}
           canEdit={perms.canEditTransactions}
           canDelete={perms.canDeleteTransactions}
         />
