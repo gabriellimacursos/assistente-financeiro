@@ -41,9 +41,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFF] overflow-x-hidden w-full">
+    <div className="min-h-screen bg-[#F8FAFF]">
       <Sidebar />
-      <main className={`transition-all duration-300 pb-20 lg:pb-0 min-h-screen overflow-x-hidden w-full ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'}`}>
+      <main className={`transition-all duration-300 pb-20 lg:pb-0 min-h-screen ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'}`}>
         {children}
       </main>
       <BottomNav />
