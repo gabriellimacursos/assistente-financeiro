@@ -94,21 +94,6 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
   const [saving, setSaving]               = useState(false)
   const [deleting, setDeleting]           = useState(false)
 
-  // Ao selecionar cartão, atualiza a data para o próximo vencimento real do cartão
-  useEffect(() => {
-    if (!cardId) return
-    const card = cards.find(c => c.id === cardId)
-    if (!card?.dueDay) return
-    const today = new Date()
-    const cutoff = card.closingDay ?? card.dueDay
-    let month = today.getMonth()
-    let year  = today.getFullYear()
-    if (today.getDate() >= cutoff) month += 1
-    while (month > 11) { month -= 12; year++ }
-    const d = new Date(year, month, card.dueDay)
-    setDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
-  }, [cardId]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const rawCats = mode === 'business' ? categoriesBusiness : categoriesPersonal
   const cats = rawCats
     .map((c: any) => typeof c === 'string' ? { name: c, direction: 'both' } : c)
