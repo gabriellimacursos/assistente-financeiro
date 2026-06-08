@@ -9,6 +9,7 @@ import {
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import ModeToggle from '@/components/shared/ModeToggle'
+import NotificationPrompt from '@/components/shared/NotificationPrompt'
 import { formatCurrency, getPercentageChange, getHealthStatus, cn } from '@/lib/utils'
 import type { ViewMode, CreditCard as CC } from '@/types'
 import {
@@ -329,6 +330,7 @@ export default function DashboardPage() {
           <p className="text-slate-500 text-sm mt-0.5 capitalize">{getPeriodLabel(periodType, anchor)}</p>
         </div>
         <ModeToggle value={viewMode} onChange={(m) => setViewMode(m as ViewMode)} size="sm" className="w-full" />
+        <NotificationPrompt />
       </div>
 
       {/* Seletor de período */}
