@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import {
   Users, Clock, CheckCircle, XCircle, Trash2, Shield,
   RefreshCw, Search, KeyRound, AlertTriangle, UserCheck, UserX,
-  Mail, Calendar,
+  Mail, Calendar, Bell, Smartphone, Activity, TrendingUp, BarChart2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
@@ -46,6 +46,18 @@ export default function AdminPage() {
   const [deleteTarget, setDeleteTarget] = useState<RegistryUser | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
+  const [notifTitle, setNotifTitle] = useState('')
+  const [notifBody, setNotifBody] = useState('')
+  const [notifUrl, setNotifUrl] = useState('/dashboard')
+  const [sendingNotif, setSendingNotif] = useState(false)
+  const [notifHistory, setNotifHistory] = useState<{ id: string; title: string; body: string; sent_at: string; recipient_count: number }[]>([])
+  const [metrics, setMetrics] = useState<{
+    totalDevices: number
+    uniqueSubscribedUsers: number
+    totalTransactions: number
+    topUsers: { email: string; count: number }[]
+  } | null>(null)
+  const [loadingMetrics, setLoadingMetrics] = useState(false)
 
   useEffect(() => {
     if (syncStatus === 'loading') return
@@ -61,6 +73,70 @@ export default function AdminPage() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
   }, [])
 
+  async function loadNotifHistory() {
+    const { data } = await supabase
+      .from('broadcast_notifications')
+      .select('id, title, body, sent_at, recipient_count')
+      .order('sent_at', { ascending: false })
+      .limit(5)
+    setNotifHistory(data ?? [])
+  }
+
+  async function loadMetrics() {
+    setLoadingMetrics(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { setLoadingMetrics(false); return }
+    try {
+      const res = await fetch('/api/admin/stats', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (res.ok) setMetrics(await res.json())
+      else setAppError(formatError(new AppError('ADM-004', 'Erro ao carregar métricas do sistema')))
+    } catch {
+      setAppError(formatError(new AppError('ADM-004', 'Falha de rede ao buscar métricas')))
+    }
+    setLoadingMetrics(false)
+  }
+
+  async function sendBroadcast() {
+    if (!notifTitle.trim() || !notifBody.trim()) return
+    setSendingNotif(true)
+    setAppError(null)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      setAppError(formatError(new AppError('ADM-002', 'Sessão expirada. Faça login novamente.')))
+      setSendingNotif(false)
+      return
+    }
+
+    try {
+      const res = await fetch('/api/push/broadcast', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ title: notifTitle, body: notifBody, url: notifUrl }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        if (data.sent === 0) {
+          addToast('Nenhum dispositivo inscrito ainda — ninguém ativou notificações', 'error')
+        } else {
+          addToast(`Enviado para ${data.sent} dispositivo${data.sent !== 1 ? 's' : ''} ✅`)
+        }
+        setNotifTitle('')
+        setNotifBody('')
+        loadNotifHistory()
+      } else {
+        setAppError(formatError(new AppError('ADM-003', data.error ?? 'Erro ao enviar notificação')))
+      }
+    } catch {
+      setAppError(formatError(new AppError('ADM-003', 'Falha de rede ao enviar notificação. Verifique sua conexão.')))
+    }
+    setSendingNotif(false)
+  }
+
   async function loadUsers() {
     setLoading(true)
     setAppError(null)
@@ -71,6 +147,8 @@ export default function AdminPage() {
     if (error) setAppError(formatError(new AppError('ADM-001', error.message)))
     setUsers(data ?? [])
     setLoading(false)
+    loadNotifHistory()
+    loadMetrics()
   }
 
   async function updateStatus(userId: string, status: 'active' | 'suspended') {
@@ -222,6 +300,145 @@ export default function AdminPage() {
           onClose={() => setAppError(null)}
         />
       )}
+
+      {/* Métricas do sistema */}
+      <div className="card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-primary-500" />
+            <h2 className="font-bold text-slate-800">Métricas do sistema</h2>
+            <HelpTooltip id="admin.metrics" />
+          </div>
+          <button
+            onClick={loadMetrics}
+            disabled={loadingMetrics}
+            className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200 transition-colors disabled:opacity-40"
+            title="Atualizar métricas"
+          >
+            <RefreshCw className={cn('w-3.5 h-3.5 text-slate-500', loadingMetrics && 'animate-spin')} />
+          </button>
+        </div>
+
+        {loadingMetrics && !metrics ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-500 rounded-full animate-spin" />
+          </div>
+        ) : metrics ? (
+          <div className="space-y-4">
+            {/* Cards de métricas */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-primary-50 rounded-2xl p-3 text-center">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Smartphone className="w-3.5 h-3.5 text-primary-500" />
+                  <p className="text-[10px] text-primary-600 font-bold uppercase tracking-wider">Dispositivos push</p>
+                </div>
+                <p className="text-2xl font-bold text-primary-700">{metrics.totalDevices}</p>
+                <p className="text-[10px] text-primary-500 mt-0.5">{metrics.uniqueSubscribedUsers} usuário{metrics.uniqueSubscribedUsers !== 1 ? 's' : ''} inscrito{metrics.uniqueSubscribedUsers !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="bg-income-50 rounded-2xl p-3 text-center">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Activity className="w-3.5 h-3.5 text-income-600" />
+                  <p className="text-[10px] text-income-600 font-bold uppercase tracking-wider">Lançamentos</p>
+                </div>
+                <p className="text-2xl font-bold text-income-700">{metrics.totalTransactions.toLocaleString('pt-BR')}</p>
+                <p className="text-[10px] text-income-500 mt-0.5">total no sistema</p>
+              </div>
+            </div>
+
+            {/* Top usuários */}
+            {metrics.topUsers.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="w-3 h-3 text-slate-400" />
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Mais ativos</p>
+                </div>
+                {metrics.topUsers.map((u, i) => {
+                  const max = metrics.topUsers[0]?.count ?? 1
+                  const pct = Math.round((u.count / max) * 100)
+                  return (
+                    <div key={u.email} className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-400 w-3">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <p className="text-xs text-slate-700 font-medium truncate">{u.email}</p>
+                          <p className="text-[10px] text-slate-400 ml-2 shrink-0">{u.count} lanç.</p>
+                        </div>
+                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary-400 rounded-full transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400 text-center py-4">Clique em atualizar para carregar as métricas</p>
+        )}
+      </div>
+
+      {/* Notificações Broadcast */}
+      <div className="card p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Bell className="w-4 h-4 text-primary-500" />
+          <h2 className="font-bold text-slate-800">Enviar notificação</h2>
+          <HelpTooltip id="admin.notifications" />
+        </div>
+
+        <div className="space-y-2">
+          <input
+            value={notifTitle}
+            onChange={e => setNotifTitle(e.target.value)}
+            placeholder="Título da notificação"
+            className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white"
+          />
+          <textarea
+            value={notifBody}
+            onChange={e => setNotifBody(e.target.value)}
+            placeholder="Mensagem…"
+            rows={2}
+            className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white resize-none"
+          />
+          <div className="flex gap-2">
+            <input
+              value={notifUrl}
+              onChange={e => setNotifUrl(e.target.value)}
+              placeholder="URL de destino (ex: /dashboard)"
+              className="flex-1 px-3 py-2 rounded-xl border-2 border-slate-200 text-xs outline-none focus:border-primary-400 bg-white"
+            />
+            <button
+              onClick={sendBroadcast}
+              disabled={sendingNotif || !notifTitle.trim() || !notifBody.trim()}
+              className="px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 disabled:opacity-40 transition-colors flex items-center gap-1.5"
+            >
+              {sendingNotif ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+              Enviar
+            </button>
+          </div>
+        </div>
+
+        {notifHistory.length > 0 && (
+          <div className="space-y-1.5 pt-1 border-t border-slate-100">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Últimas enviadas</p>
+            {notifHistory.map(n => (
+              <div key={n.id} className="flex items-start justify-between gap-2 text-xs">
+                <div>
+                  <p className="font-semibold text-slate-700">{n.title}</p>
+                  <p className="text-slate-400">{n.body}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-slate-400">{n.recipient_count} disp.</p>
+                  <p className="text-slate-300">{format(parseISO(n.sent_at), 'd MMM HH:mm', { locale: ptBR })}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

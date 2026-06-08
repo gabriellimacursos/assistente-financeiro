@@ -3,8 +3,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronRight, LogOut, Plus, X, Building2, User,
-  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen, Settings2,
+  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen, Settings2, Bell,
 } from 'lucide-react'
+import PushToggleButton from '@/components/shared/PushManager'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -586,6 +587,28 @@ export default function ConfiguracoesPage() {
           <p className="text-xs text-slate-400 text-center">
             Toque em uma categoria para removê-la
           </p>
+        </div>
+      </div>
+
+      {/* ── Notificações ── */}
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Notificações</p>
+        <div className="card p-4">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center shrink-0">
+              <Bell className="w-4 h-4 text-primary-500" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-slate-800">Alertas no celular</p>
+                <HelpTooltip id="config.notifications" />
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                Receba notificações sobre faturas vencendo e débitos automáticos diretamente no seu dispositivo.
+              </p>
+            </div>
+          </div>
+          <PushToggleButton />
         </div>
       </div>
 

@@ -650,6 +650,37 @@ export const HELP_CONTENT: Record<string, HelpEntry> = {
     ],
   },
 
+  'admin.metrics': {
+    title: 'Métricas do Sistema',
+    description: 'Visão geral de como o sistema está sendo utilizado: usuários ativos, dispositivos com notificações habilitadas, lançamentos registrados e usuários mais engajados.',
+    tips: [
+      'Dispositivos push = celulares/navegadores com notificação ativa. Um usuário pode ter vários dispositivos.',
+      'Usuários mais ativos são ranqueados pelo total de lançamentos registrados.',
+      'Clique em Atualizar para recarregar as métricas.',
+    ],
+  },
+
+  'admin.notifications': {
+    title: 'Enviar Notificação para Todos',
+    description: 'Envia uma mensagem push para todos os usuários que habilitaram notificações nos dispositivos deles. Útil para comunicar novidades, manutenções, lembretes ou atualizações do sistema.',
+    tips: [
+      'Só chegará para usuários que ativaram notificações em Configurações → Alertas.',
+      'O campo "URL de destino" define para qual página o usuário será levado ao tocar na notificação.',
+      'O histórico das últimas notificações enviadas aparece abaixo do formulário.',
+    ],
+  },
+
+  'config.notifications': {
+    title: 'Alertas no Celular',
+    description: 'Ativa notificações push neste dispositivo. Você receberá alertas automáticos sobre faturas de cartão vencendo e débitos recorrentes programados para o dia seguinte.',
+    tips: [
+      'No iPhone, o app precisa estar salvo na tela inicial (ícone na home) para receber notificações.',
+      'No Android e em computadores, funciona diretamente pelo navegador.',
+      'Você pode desativar a qualquer momento tocando novamente no botão.',
+      'As notificações chegam todo dia às 8h da manhã.',
+    ],
+  },
+
   // ─── LOGIN / AUTENTICAÇÃO ────────────────────────────────────────────────
 
   'login.email': {
