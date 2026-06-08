@@ -36,8 +36,8 @@ function getPeriodLabel(type: PeriodType, anchor: Date): string {
   switch (type) {
     case 'day': return format(anchor, "d 'de' MMMM 'de' yyyy", { locale: ptBR })
     case 'week': {
-      const s = startOfWeek(anchor, { weekStartsOn: 0 })
-      const e = endOfWeek(anchor, { weekStartsOn: 0 })
+      const s = startOfWeek(anchor, { weekStartsOn: 1 })
+      const e = endOfWeek(anchor, { weekStartsOn: 1 })
       return `${format(s, 'd MMM', { locale: ptBR })} – ${format(e, 'd MMM', { locale: ptBR })}`
     }
     case 'month': return format(anchor, "MMMM 'de' yyyy", { locale: ptBR })
@@ -56,7 +56,7 @@ function navigatePeriod(type: PeriodType, date: Date, dir: 1 | -1): Date {
 
 function isCurrentPeriod(type: PeriodType, date: Date): boolean {
   if (type === 'day') return isToday(date)
-  if (type === 'week') return isSameWeek(date, new Date(), { weekStartsOn: 0 })
+  if (type === 'week') return isSameWeek(date, new Date(), { weekStartsOn: 1 })
   if (type === 'month') return isThisMonth(date)
   return isThisYear(date)
 }
@@ -65,8 +65,8 @@ function txInPeriod(txDate: Date, type: PeriodType, anchor: Date): boolean {
   if (type === 'day') return isSameDay(txDate, anchor)
   if (type === 'month') return isSameMonth(txDate, anchor)
   if (type === 'year') return txDate.getFullYear() === anchor.getFullYear()
-  const s = startOfWeek(anchor, { weekStartsOn: 0 })
-  const e = endOfWeek(anchor, { weekStartsOn: 0 })
+  const s = startOfWeek(anchor, { weekStartsOn: 1 })
+  const e = endOfWeek(anchor, { weekStartsOn: 1 })
   return txDate >= s && txDate <= e
 }
 
@@ -155,7 +155,7 @@ export default function DashboardPage() {
 
     // Dia / Semana: sempre 7 dias completos (contexto da semana é necessário)
     if (periodType === 'day' || periodType === 'week') {
-      const weekStart = startOfWeek(anchor, { weekStartsOn: 0 })
+      const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
       return Array.from({ length: 7 }, (_, i) => {
         const day = addDays(weekStart, i)
         const txs = confirmedFiltered.filter(t => isSameDay(parseISO(t.date), day))
