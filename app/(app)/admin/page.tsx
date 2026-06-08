@@ -67,6 +67,13 @@ export default function AdminPage() {
     if (syncStatus === 'ready' && canAccess) loadUsers()
   }, [syncStatus, isAdmin, router, profiles, activeProfileId])
 
+  // Atualiza métricas quando a aba volta ao foco
+  useEffect(() => {
+    function onFocus() { loadMetrics() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
   const addToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     const id = ++toastId
     setToasts(prev => [...prev, { id, message, type }])
