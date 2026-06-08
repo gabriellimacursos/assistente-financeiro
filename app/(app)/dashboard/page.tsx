@@ -705,15 +705,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* FAB mobile */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-[55]">
-        <button
-          onClick={() => router.push('/registrar')}
-          className="w-14 h-14 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-float text-white active:scale-95 transition-transform"
-        >
-          <Mic className="w-6 h-6" />
-        </button>
-      </div>
     </div>
   )
 }
