@@ -9,14 +9,14 @@ function getSupabase() {
 }
 
 export async function POST(req: NextRequest) {
-  // Get user from Supabase auth using the request cookies
-  const cookieHeader = req.headers.get('cookie') ?? ''
+  const token = req.headers.get('authorization')?.replace('Bearer ', '')
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const anonClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { cookie: cookieHeader } } }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
-  const { data: { user } } = await anonClient.auth.getUser()
+  const { data: { user } } = await anonClient.auth.getUser(token)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { endpoint, p256dh, auth } = await req.json()

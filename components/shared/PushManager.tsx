@@ -7,6 +7,7 @@ export function usePushPermission() {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [subscribed, setSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return
@@ -24,6 +25,7 @@ export function usePushPermission() {
 
   async function subscribe() {
     setLoading(true)
+    setError(null)
     try {
       const reg = await navigator.serviceWorker.register('/sw.js')
       await navigator.serviceWorker.ready
@@ -31,26 +33,39 @@ export function usePushPermission() {
       setPermission(perm)
       if (perm !== 'granted') return
 
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKey) { setError('Configuração incompleta: VAPID key ausente.'); return }
+
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       })
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setError('Sessão expirada. Faça login novamente.'); return }
 
       const key = sub.getKey('p256dh')
       const auth = sub.getKey('auth')
-      await fetch('/api/push/subscribe', {
+      const res = await fetch('/api/push/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           endpoint: sub.endpoint,
           p256dh: key ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(key)))) : '',
           auth: auth ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(auth)))) : '',
         }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Erro ao registrar dispositivo. Tente novamente.')
+        return
+      }
       setSubscribed(true)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro inesperado ao ativar notificações.')
     } finally {
       setLoading(false)
     }
@@ -75,7 +90,7 @@ export function usePushPermission() {
     }
   }
 
-  return { permission, subscribed, loading, subscribe, unsubscribe }
+  return { permission, subscribed, loading, error, subscribe, unsubscribe }
 }
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -90,7 +105,7 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export default function PushToggleButton() {
-  const { permission, subscribed, loading, subscribe, unsubscribe } = usePushPermission()
+  const { permission, subscribed, loading, error, subscribe, unsubscribe } = usePushPermission()
   const supported = typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator
 
   if (!supported) return (
@@ -108,17 +123,24 @@ export default function PushToggleButton() {
   )
 
   return (
-    <button
-      onClick={subscribed ? unsubscribe : subscribe}
-      disabled={loading}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all ${
-        subscribed
-          ? 'bg-primary-500 text-white hover:bg-primary-600'
-          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-      } disabled:opacity-50`}
-    >
-      {subscribed ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-      {loading ? 'Aguarde...' : subscribed ? 'Notificações ativas' : 'Ativar notificações'}
-    </button>
+    <div className="space-y-2">
+      <button
+        onClick={subscribed ? unsubscribe : subscribe}
+        disabled={loading}
+        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all ${
+          subscribed
+            ? 'bg-primary-500 text-white hover:bg-primary-600'
+            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+        } disabled:opacity-50`}
+      >
+        {subscribed ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+        {loading ? 'Aguarde...' : subscribed ? 'Notificações ativas' : 'Ativar notificações'}
+      </button>
+      {error && (
+        <p className="text-xs text-expense-600 bg-expense-50 px-3 py-2 rounded-xl">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }

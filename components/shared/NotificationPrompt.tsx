@@ -6,7 +6,7 @@ import { usePushPermission } from './PushManager'
 const DISMISSED_KEY = 'notif-prompt-dismissed-v1'
 
 export default function NotificationPrompt() {
-  const { permission, subscribed, loading, subscribe } = usePushPermission()
+  const { permission, subscribed, loading, error, subscribe } = usePushPermission()
   const [dismissed, setDismissed] = useState(true) // começa true para evitar flash
   const [mounted, setMounted] = useState(false)
 
