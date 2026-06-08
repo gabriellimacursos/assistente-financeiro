@@ -323,12 +323,12 @@ export default function DashboardPage() {
     <div className="p-4 lg:p-8 space-y-6 max-w-6xl mx-auto">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="space-y-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
           <p className="text-slate-500 text-sm mt-0.5 capitalize">{getPeriodLabel(periodType, anchor)}</p>
         </div>
-        <ModeToggle value={viewMode} onChange={(m) => setViewMode(m as ViewMode)} size="sm" />
+        <ModeToggle value={viewMode} onChange={(m) => setViewMode(m as ViewMode)} size="sm" className="w-full" />
       </div>
 
       {/* Seletor de período */}
