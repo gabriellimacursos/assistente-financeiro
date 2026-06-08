@@ -23,11 +23,16 @@
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   body {
     @apply bg-[#F8FAFF] text-slate-800;
     overscroll-behavior: none;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
   }
 
   ::-webkit-scrollbar {
