@@ -133,15 +133,15 @@ export default function DashboardPage() {
       .map(([name, amount]) => ({ name, amount }))
   }, [confirmedPeriodTx])
 
-  // Gráfico de tendência — corrigido: não mostra períodos futuros sem dados
+  // Gráfico de tendência
   const trendData = useMemo(() => {
     const confirmedFiltered = filtered.filter(t => t.status !== 'pending')
-    const today = new Date()
 
+    // Ano: só meses até o atual (sem barras futuras vazias)
     if (periodType === 'year') {
       const year = anchor.getFullYear()
-      const isCurrentYear = year === today.getFullYear()
-      const monthsToShow = isCurrentYear ? today.getMonth() + 1 : 12
+      const isCurrentYear = year === new Date().getFullYear()
+      const monthsToShow = isCurrentYear ? new Date().getMonth() + 1 : 12
       return Array.from({ length: monthsToShow }, (_, i) => {
         const d = new Date(year, i, 1)
         const txs = confirmedFiltered.filter(t => isSameMonth(parseISO(t.date), d))
@@ -153,15 +153,10 @@ export default function DashboardPage() {
       })
     }
 
+    // Dia / Semana: sempre 7 dias completos (contexto da semana é necessário)
     if (periodType === 'day' || periodType === 'week') {
       const weekStart = startOfWeek(anchor, { weekStartsOn: 0 })
-      const isCurrentWeek = isSameWeek(anchor, today, { weekStartsOn: 0 })
-      const cutoff = isCurrentWeek ? today : endOfWeek(anchor, { weekStartsOn: 0 })
-      const daysToShow = Math.min(
-        Math.floor((cutoff.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24)) + 1,
-        7
-      )
-      return Array.from({ length: daysToShow }, (_, i) => {
+      return Array.from({ length: 7 }, (_, i) => {
         const day = addDays(weekStart, i)
         const txs = confirmedFiltered.filter(t => isSameDay(parseISO(t.date), day))
         return {
@@ -173,26 +168,16 @@ export default function DashboardPage() {
       })
     }
 
-    // month: últimos 6 meses terminando no anchor (atual = último)
-    const map: Record<string, { income: number; expense: number; sortKey: number }> = {}
-    const sixAgo = subMonths(anchor, 5)
-    const endDate = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
-    confirmedFiltered
-      .filter(t => {
-        const d = parseISO(t.date)
-        return d >= startOfMonth(sixAgo) && d <= endDate
-      })
-      .forEach(t => {
-        const d = parseISO(t.date)
-        const key = format(d, 'MMM/yy', { locale: ptBR })
-        const sortKey = d.getFullYear() * 100 + d.getMonth()
-        if (!map[key]) map[key] = { income: 0, expense: 0, sortKey }
-        if (t.type === 'income') map[key].income += t.amount
-        else map[key].expense += t.amount
-      })
-    return Object.entries(map)
-      .sort((a, b) => a[1].sortKey - b[1].sortKey)
-      .map(([label, vals]) => ({ label, income: vals.income, expense: vals.expense }))
+    // Mês: sempre 6 meses fixos (incluindo os sem dados, para o AreaChart não ficar vazio)
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = subMonths(anchor, 5 - i)
+      const txs = confirmedFiltered.filter(t => isSameMonth(parseISO(t.date), d))
+      return {
+        label: format(d, 'MMM/yy', { locale: ptBR }),
+        income: txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+        expense: txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+      }
+    })
   }, [filtered, periodType, anchor])
 
   // Próximas recorrências (30 dias)
@@ -246,24 +231,42 @@ export default function DashboardPage() {
   const trendTitle   = { day: 'Esta semana (dia a dia)', week: 'Esta semana (dia a dia)', month: 'Últimos 6 meses', year: `Meses de ${anchor.getFullYear()}` }[periodType]
   const isCurrent    = isCurrentPeriod(periodType, anchor)
 
-  // Alertas de fatura
+  // Alertas de fatura — vencimento calculado pelo dueDay do cartão, não pela data da compra
   const billAlerts = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const in7Days = new Date(today)
-    in7Days.setDate(in7Days.getDate() + 7)
     const result: { card: CC; total: number; daysUntilDue: number; txIds: string[]; dueDate: Date }[] = []
+
     for (const card of cards) {
       if (!card.dueDay || !card.active) continue
+
+      // Calcula o próximo vencimento real pelo dueDay do cartão
+      const cutoff = card.closingDay ?? card.dueDay
+      let year = today.getFullYear()
+      let month = today.getMonth()
+      if (today.getDate() >= cutoff) month += 1
+      while (month > 11) { month -= 12; year++ }
+      const dueDate = new Date(year, month, card.dueDay)
+      dueDate.setHours(0, 0, 0, 0)
+
+      const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+      // Só alerta se o vencimento está em até 7 dias ou já venceu
+      if (daysUntilDue > 7) continue
+
+      // Todas as transações pendentes do cartão
       const pendingTx = filtered.filter(t =>
-        t.card_id === card.id && t.status === 'pending' && t.type === 'expense' &&
-        parseISO(t.date) <= in7Days
+        t.card_id === card.id && t.status === 'pending' && t.type === 'expense'
       )
       if (pendingTx.length === 0) continue
-      const dueDates = pendingTx.map(t => parseISO(t.date).getTime())
-      const dueDate = new Date(Math.min(...dueDates))
-      const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      result.push({ card, total: pendingTx.reduce((s, t) => s + t.amount, 0), daysUntilDue, txIds: pendingTx.map(t => t.id), dueDate })
+
+      result.push({
+        card,
+        total: pendingTx.reduce((s, t) => s + t.amount, 0),
+        daysUntilDue,
+        txIds: pendingTx.map(t => t.id),
+        dueDate,
+      })
     }
     return result.filter(a => !paidAlerts.has(a.card.id)).sort((a, b) => a.daysUntilDue - b.daysUntilDue)
   }, [cards, filtered, paidAlerts])
