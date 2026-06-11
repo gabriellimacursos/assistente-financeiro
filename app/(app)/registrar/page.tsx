@@ -974,7 +974,7 @@ export default function RegistrarPage() {
           style={{ minHeight: '52px' }}
         />
 
-        <div className="flex items-center gap-1 pr-2 shrink-0">
+        <div className="flex items-center gap-1 pr-2 pb-2 shrink-0">
           {/* Botão enviar texto */}
           {!isListening && !isProcessing && textInput.trim() && (
             <button onClick={handleSubmit}
