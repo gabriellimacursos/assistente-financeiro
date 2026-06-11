@@ -289,17 +289,23 @@ export default function DashboardPage() {
   )
 
   const futureCardBills = useMemo(() => {
-    const today = new Date()
-    today.setHours(23, 59, 59, 0)
     const map: Record<string, { total: number; sortKey: number; label: string; items: { cardName: string; amount: number }[] }> = {}
     filtered.forEach(t => {
-      if (!t.card_id || t.type !== 'expense') return
+      if (!t.card_id || t.type !== 'expense' || t.status !== 'pending') return
+      const card = cards.find(c => c.id === t.card_id)
+      if (!card?.dueDay) return
+      // Group by card's billing due date so past purchases appear in the correct invoice month
       const d = parseISO(t.date)
-      if (d <= today) return
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const label = format(d, "MMMM 'de' yyyy", { locale: ptBR })
-      const cardName = cards.find(c => c.id === t.card_id)?.name ?? 'Cartão'
-      if (!map[key]) map[key] = { total: 0, sortKey: d.getFullYear() * 100 + d.getMonth(), label, items: [] }
+      const cutoff = card.closingDay ?? card.dueDay
+      let month = d.getMonth()
+      let year = d.getFullYear()
+      if (d.getDate() >= cutoff) month += 1
+      while (month > 11) { month -= 12; year++ }
+      const dueDate = new Date(year, month, card.dueDay)
+      const key = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`
+      const label = format(dueDate, "MMMM 'de' yyyy", { locale: ptBR })
+      const cardName = card.name ?? 'Cartão'
+      if (!map[key]) map[key] = { total: 0, sortKey: dueDate.getFullYear() * 100 + dueDate.getMonth(), label, items: [] }
       map[key].total += t.amount
       const existing = map[key].items.find(i => i.cardName === cardName)
       if (existing) existing.amount += t.amount

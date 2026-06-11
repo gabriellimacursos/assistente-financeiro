@@ -66,14 +66,9 @@ export default function RegistrarPage() {
   const [installmentCount, setInstallmentCount] = useState(1)
   const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
 
-  // Auto-set date to card due date when card is selected
   useEffect(() => {
-    if (!selectedCardId) { setInstallmentCount(1); return }
-    const card = cards.find(c => c.id === selectedCardId)
-    if (!card?.dueDay) return
-    const due = cardNextDueDate(card)
-    if (due) setSelectedDate(due)
-  }, [selectedCardId, cards])
+    if (!selectedCardId) setInstallmentCount(1)
+  }, [selectedCardId])
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-resize do textarea conforme texto cresce
@@ -565,7 +560,7 @@ export default function RegistrarPage() {
     const dateFormatted = format(parseISO(selectedDate + 'T12:00:00'), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
 
     return (
-      <div className="max-w-md mx-auto p-5 pt-6 space-y-3">
+      <div className="max-w-md mx-auto p-5 pt-6 pb-28 space-y-3">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-bold text-slate-800">Confirmar registro</h2>
           <button onClick={handleCancel} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200 transition-colors">
