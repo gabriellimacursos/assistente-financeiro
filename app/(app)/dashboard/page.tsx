@@ -293,15 +293,21 @@ export default function DashboardPage() {
     filtered.forEach(t => {
       if (!t.card_id || t.type !== 'expense' || t.status !== 'pending') return
       const card = cards.find(c => c.id === t.card_id)
-      if (!card?.dueDay) return
-      // Group by card's billing due date so past purchases appear in the correct invoice month
+      if (!card?.dueDay || !card.active) return
       const d = parseISO(t.date)
-      const cutoff = card.closingDay ?? card.dueDay
-      let month = d.getMonth()
-      let year = d.getFullYear()
-      if (d.getDate() >= cutoff) month += 1
-      while (month > 11) { month -= 12; year++ }
-      const dueDate = new Date(year, month, card.dueDay)
+      let dueDate: Date
+      if (d.getDate() === card.dueDay) {
+        // Transaction is already stored on its due date (installment or pre-fix data) — keep in that month
+        dueDate = new Date(d.getFullYear(), d.getMonth(), card.dueDay)
+      } else {
+        // Purchase date — calculate which billing cycle it belongs to via closing day
+        const cutoff = card.closingDay ?? card.dueDay
+        let month = d.getMonth()
+        let year = d.getFullYear()
+        if (d.getDate() >= cutoff) month += 1
+        while (month > 11) { month -= 12; year++ }
+        dueDate = new Date(year, month, card.dueDay)
+      }
       const key = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`
       const label = format(dueDate, "MMMM 'de' yyyy", { locale: ptBR })
       const cardName = card.name ?? 'Cartão'
