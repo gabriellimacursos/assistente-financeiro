@@ -16,7 +16,7 @@ import { parseISO, format, startOfMonth, endOfMonth, subMonths, endOfDay, addDay
 import { ptBR } from 'date-fns/locale'
 import type { ViewMode, Transaction, Mode, CreditCard as CC, Recurrence, RecurrenceFrequency } from '@/types'
 
-type FilterType = 'all' | 'income' | 'expense'
+type FilterType = 'all' | 'income' | 'expense' | 'pending'
 
 function cardNextDueDate(card: { closingDay?: number; dueDay?: number }, monthOffset = 0): string {
   if (!card.dueDay) return ''
@@ -477,6 +477,8 @@ export default function TimelinePage() {
   const [appError, setAppError]             = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [showCategoryFilter, setShowCategoryFilter] = useState(false)
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+  const [showCardFilter, setShowCardFilter] = useState(false)
 
   const periodOptions = getPeriodOptions()
   const currentPeriod = periodOptions.find(p => p.value === selectedPeriod)
@@ -486,7 +488,9 @@ export default function TimelinePage() {
     const cats = new Set<string>()
     transactions.forEach(t => {
       if (viewMode !== 'all' && t.mode !== viewMode) return
-      if (typeFilter !== 'all' && t.type !== typeFilter) return
+      if (typeFilter === 'income' && t.type !== 'income') return
+      if (typeFilter === 'expense' && t.type !== 'expense') return
+      if (typeFilter === 'pending' && t.status !== 'pending') return
       cats.add(t.category)
     })
     return Array.from(cats).sort()
@@ -497,8 +501,11 @@ export default function TimelinePage() {
     return transactions
       .filter(t => {
         if (viewMode !== 'all' && t.mode !== viewMode) return false
-        if (typeFilter !== 'all' && t.type !== typeFilter) return false
+        if (typeFilter === 'income' && t.type !== 'income') return false
+        if (typeFilter === 'expense' && t.type !== 'expense') return false
+        if (typeFilter === 'pending' && t.status !== 'pending') return false
         if (selectedCategories.size > 0 && !selectedCategories.has(t.category)) return false
+        if (selectedCardIds.size > 0 && !selectedCardIds.has(t.card_id ?? '')) return false
         if (q && !t.description.toLowerCase().includes(q) && !t.category.toLowerCase().includes(q)) return false
 
         const date = parseISO(t.date)
@@ -511,7 +518,7 @@ export default function TimelinePage() {
         return date >= currentPeriod.start && date <= currentPeriod.end
       })
       .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime())
-  }, [transactions, viewMode, typeFilter, selectedCategories, searchQuery, selectedPeriod, customStart, customEnd, currentPeriod])
+  }, [transactions, viewMode, typeFilter, selectedCategories, selectedCardIds, searchQuery, selectedPeriod, customStart, customEnd, currentPeriod])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Transaction[]>()
@@ -536,6 +543,7 @@ export default function TimelinePage() {
     typeFilter !== 'all',
     selectedPeriod !== 'month',
     selectedCategories.size > 0,
+    selectedCardIds.size > 0,
     searchQuery.trim() !== '',
   ].filter(Boolean).length
 
@@ -545,8 +553,10 @@ export default function TimelinePage() {
     setCustomStart('')
     setCustomEnd('')
     setSelectedCategories(new Set())
+    setSelectedCardIds(new Set())
     setSearchQuery('')
     setShowCategoryFilter(false)
+    setShowCardFilter(false)
   }
 
   function toggleCategory(cat: string) {
@@ -554,6 +564,15 @@ export default function TimelinePage() {
       const next = new Set(prev)
       if (next.has(cat)) next.delete(cat)
       else next.add(cat)
+      return next
+    })
+  }
+
+  function toggleCardId(id: string) {
+    setSelectedCardIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -646,10 +665,15 @@ export default function TimelinePage() {
                 { value: 'all',     label: 'Todos' },
                 { value: 'income',  label: '↑ Entrada' },
                 { value: 'expense', label: '↓ Saída' },
+                { value: 'pending', label: '⏱ A pagar' },
               ].map(f => (
                 <button key={f.value} onClick={() => setTypeFilter(f.value as FilterType)}
-                  className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
-                    typeFilter === f.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+                  className={cn('px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
+                    typeFilter === f.value
+                      ? f.value === 'pending'
+                        ? 'bg-amber-400 text-white shadow-sm'
+                        : 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700')}>
                   {f.label}
                 </button>
               ))}
@@ -755,6 +779,46 @@ export default function TimelinePage() {
             </div>
           )}
         </div>
+
+        {/* Linha 4: Filtro por cartão */}
+        {cards.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowCardFilter(!showCardFilter)}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all w-full',
+                showCardFilter || selectedCardIds.size > 0
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              )}
+            >
+              <CreditCard className="w-3.5 h-3.5 shrink-0" />
+              <span className="flex-1 text-left">
+                {selectedCardIds.size > 0
+                  ? `${selectedCardIds.size} cartão${selectedCardIds.size > 1 ? 'ões' : ''} selecionado${selectedCardIds.size > 1 ? 's' : ''}`
+                  : 'Filtrar por cartão'}
+              </span>
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform shrink-0', showCardFilter && 'rotate-180')} />
+            </button>
+
+            {showCardFilter && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {cards.map(card => (
+                  <button key={card.id} onClick={() => toggleCardId(card.id)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border-2 transition-all',
+                      selectedCardIds.has(card.id)
+                        ? 'bg-primary-500 border-primary-500 text-white'
+                        : 'border-slate-200 text-slate-600 hover:border-primary-300 hover:bg-primary-50'
+                    )}>
+                    <CreditCard className="w-3 h-3 shrink-0" />
+                    {card.name}{card.lastDigits ? ` ••${card.lastDigits}` : ''}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Error banner */}
