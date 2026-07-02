@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
           notifications.push({
             title: `💳 Fatura vencendo ${dayLabel}`,
             body: `${card.name} · ${amount} pendentes`,
-            url: '/cartoes',
+            url: '/dashboard',
             tag: `bill-${card.id}`,
           })
         }
