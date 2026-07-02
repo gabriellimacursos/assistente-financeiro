@@ -500,6 +500,7 @@ export default function TimelinePage() {
   const [showCategoryFilter, setShowCategoryFilter] = useState(false)
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
   const [showCardFilter, setShowCardFilter] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
 
   const periodOptions = getPeriodOptions()
   const currentPeriod = periodOptions.find(p => p.value === selectedPeriod)
@@ -660,22 +661,46 @@ export default function TimelinePage() {
       {/* Filtros */}
       <div className="card p-4 space-y-3">
 
-        {/* Linha 0: Busca por texto */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Buscar por descrição ou categoria…"
-            className="w-full pl-9 pr-9 py-2.5 rounded-xl border-2 border-slate-200 text-sm text-slate-800 outline-none focus:border-primary-400 bg-white transition-all"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 hover:text-slate-600">
-              <X className="w-4 h-4" />
-            </button>
-          )}
+        {/* Linha 0: Busca + toggle filtros */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar lançamento…"
+              className="w-full pl-9 pr-9 py-2.5 rounded-xl border-2 border-slate-200 text-sm text-slate-800 outline-none focus:border-primary-400 bg-white transition-all"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0',
+              showFilters || activeFilterCount > 0
+                ? 'bg-primary-500 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            )}
+          >
+            {activeFilterCount > 0 && (
+              <span className={cn('w-4 h-4 rounded-full text-[10px] font-black flex items-center justify-center shrink-0',
+                showFilters ? 'bg-white text-primary-600' : 'bg-primary-500 text-white'
+              )}>
+                {activeFilterCount}
+              </span>
+            )}
+            Filtros
+            <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showFilters && 'rotate-180')} />
+          </button>
         </div>
+
+        {/* Filtros expansíveis */}
+        {showFilters && <>
 
         {/* Linha 1: Tipo + Período + Limpar */}
         <div className="flex gap-2 flex-wrap items-center">
@@ -840,6 +865,8 @@ export default function TimelinePage() {
             )}
           </div>
         )}
+
+        </>}
       </div>
 
       {/* Error banner */}

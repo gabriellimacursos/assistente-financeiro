@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import {
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Mic, Sparkles, AlertTriangle, CheckCircle, XCircle,
-  ChevronLeft, ChevronRight, CreditCard, Bell, X, RefreshCw,
+  ChevronLeft, ChevronRight, CreditCard, RefreshCw, X,
 } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
@@ -13,7 +13,7 @@ import NotificationPrompt from '@/components/shared/NotificationPrompt'
 import { formatCurrency, getPercentageChange, getHealthStatus, cn } from '@/lib/utils'
 import type { ViewMode, CreditCard as CC } from '@/types'
 import {
-  format, parseISO, subMonths, startOfMonth,
+  format, parseISO, subMonths,
   isSameDay, isSameMonth, isSameWeek,
   addDays, addWeeks, addMonths, addYears,
   startOfWeek, endOfWeek,
@@ -83,6 +83,7 @@ export default function DashboardPage() {
   const [paidAlerts, setPaidAlerts] = useState<Set<string>>(new Set())
   const [payError, setPayError] = useState<string | null>(null)
   const [individuallyPaid, setIndividuallyPaid] = useState<Set<string>>(new Set())
+  const [paySuccess, setPaySuccess] = useState(false)
 
   const filtered = useMemo(() =>
     transactions.filter(t => viewMode === 'all' || t.mode === viewMode),
@@ -115,6 +116,21 @@ export default function DashboardPage() {
   const health        = getHealthStatus(balance, totalExpense)
 
   const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : null
+
+  // Consecutive days streak (days back from today with at least 1 confirmed transaction)
+  const streak = useMemo(() => {
+    let count = 0
+    let d = new Date()
+    d.setHours(0, 0, 0, 0)
+    while (true) {
+      const dateStr = format(d, 'yyyy-MM-dd')
+      const hasAny = transactions.some(t => t.date.startsWith(dateStr) && t.status !== 'pending')
+      if (!hasAny) break
+      count++
+      d = addDays(d, -1)
+    }
+    return count
+  }, [transactions])
 
   const categoryData = useMemo(() => {
     const map: Record<string, number> = {}
@@ -158,7 +174,7 @@ export default function DashboardPage() {
       })
     }
 
-    // Dia / Semana: sempre 7 dias completos (contexto da semana é necessário)
+    // Dia / Semana: sempre 7 dias completos
     if (periodType === 'day' || periodType === 'week') {
       const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
       return Array.from({ length: 7 }, (_, i) => {
@@ -173,7 +189,7 @@ export default function DashboardPage() {
       })
     }
 
-    // Mês: sempre 6 meses fixos (incluindo os sem dados, para o AreaChart não ficar vazio)
+    // Mês: sempre 6 meses fixos
     return Array.from({ length: 6 }, (_, i) => {
       const d = subMonths(anchor, 5 - i)
       const txs = confirmedFiltered.filter(t => isSameMonth(parseISO(t.date), d))
@@ -236,46 +252,6 @@ export default function DashboardPage() {
   const trendTitle   = { day: 'Esta semana (dia a dia)', week: 'Esta semana (dia a dia)', month: 'Últimos 6 meses', year: `Meses de ${anchor.getFullYear()}` }[periodType]
   const isCurrent    = isCurrentPeriod(periodType, anchor)
 
-  // Alertas de fatura — vencimento calculado pelo dueDay do cartão, não pela data da compra
-  const billAlerts = useMemo(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const result: { card: CC; total: number; daysUntilDue: number; txIds: string[]; dueDate: Date }[] = []
-
-    for (const card of cards) {
-      if (!card.dueDay || !card.active) continue
-
-      // Calcula o próximo vencimento real pelo dueDay do cartão
-      const cutoff = card.closingDay ?? card.dueDay
-      let year = today.getFullYear()
-      let month = today.getMonth()
-      if (today.getDate() >= cutoff) month += 1
-      while (month > 11) { month -= 12; year++ }
-      const dueDate = new Date(year, month, card.dueDay)
-      dueDate.setHours(0, 0, 0, 0)
-
-      const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-
-      // Só alerta se o vencimento está em até 7 dias ou já venceu
-      if (daysUntilDue > 7) continue
-
-      // Todas as transações pendentes do cartão
-      const pendingTx = filtered.filter(t =>
-        t.card_id === card.id && t.status === 'pending' && t.type === 'expense'
-      )
-      if (pendingTx.length === 0) continue
-
-      result.push({
-        card,
-        total: pendingTx.reduce((s, t) => s + t.amount, 0),
-        daysUntilDue,
-        txIds: pendingTx.map(t => t.id),
-        dueDate,
-      })
-    }
-    return result.filter(a => !paidAlerts.has(a.card.id)).sort((a, b) => a.daysUntilDue - b.daysUntilDue)
-  }, [cards, filtered, paidAlerts])
-
   const pendingByCard = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -321,6 +297,8 @@ export default function DashboardPage() {
       setPaidAlerts(prev => { const s = new Set(prev); s.add(cardId); return s })
       setConfirmPayCard(null)
       setIndividuallyPaid(new Set())
+      setPaySuccess(true)
+      setTimeout(() => setPaySuccess(false), 4000)
     } catch {
       setPayError('Erro ao confirmar pagamento. Tente novamente.')
     }
@@ -336,11 +314,6 @@ export default function DashboardPage() {
     }
   }
 
-  const recentTx = useMemo(() =>
-    [...periodTx].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5),
-    [periodTx]
-  )
-
   const futureCardBills = useMemo(() => {
     const map: Record<string, { total: number; sortKey: number; label: string; items: { cardName: string; amount: number }[] }> = {}
     filtered.forEach(t => {
@@ -350,10 +323,8 @@ export default function DashboardPage() {
       const d = parseISO(t.date)
       let dueDate: Date
       if (d.getDate() === card.dueDay) {
-        // Transaction is already stored on its due date (installment or pre-fix data) — keep in that month
         dueDate = new Date(d.getFullYear(), d.getMonth(), card.dueDay)
       } else {
-        // Purchase date — calculate which billing cycle it belongs to via closing day
         const cutoff = card.closingDay ?? card.dueDay
         let month = d.getMonth()
         let year = d.getFullYear()
@@ -388,11 +359,29 @@ export default function DashboardPage() {
   return (
     <div className="p-4 lg:p-8 space-y-6 max-w-6xl mx-auto">
 
-      {/* Header */}
+      {/* Toast de sucesso após pagar */}
+      {paySuccess && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] animate-fade-up pointer-events-none">
+          <div className="bg-income-500 text-white px-6 py-3 rounded-2xl shadow-float flex items-center gap-3 font-semibold text-sm whitespace-nowrap">
+            <CheckCircle className="w-5 h-5 shrink-0" />
+            🎉 Fatura paga com sucesso!
+          </div>
+        </div>
+      )}
+
+      {/* Header com saldo hero */}
       <div className="space-y-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-0.5 capitalize">{getPeriodLabel(periodType, anchor)}</p>
+        <div className="text-center py-3">
+          <p className="text-xs text-slate-400 font-medium mb-3 capitalize">{getPeriodLabel(periodType, anchor)}</p>
+          <p className={cn('text-5xl font-black tracking-tight leading-none', balance >= 0 ? 'text-income-500' : 'text-expense-500')}>
+            {balance < 0 ? '-' : ''}{formatCurrency(Math.abs(balance))}
+          </p>
+          <p className="text-sm text-slate-400 mt-2">saldo do {periodName}</p>
+          {streak > 1 && (
+            <div className="inline-flex items-center gap-1.5 mt-3 bg-amber-50 text-amber-600 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-200">
+              🔥 {streak} dias consecutivos registrando
+            </div>
+          )}
         </div>
         <ModeToggle value={viewMode} onChange={(m) => setViewMode(m as ViewMode)} size="sm" className="w-full" />
         <NotificationPrompt />
@@ -442,44 +431,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Alertas de fatura */}
-      {billAlerts.map(alert => {
-        const isOverdue  = alert.daysUntilDue < 0
-        const isDueToday = alert.daysUntilDue === 0
-        const label = isOverdue
-          ? `Vencida há ${Math.abs(alert.daysUntilDue)} dia${Math.abs(alert.daysUntilDue) > 1 ? 's' : ''}`
-          : isDueToday ? 'Vence hoje!'
-          : `Vence em ${alert.daysUntilDue} dia${alert.daysUntilDue > 1 ? 's' : ''}`
-        const color     = isOverdue || isDueToday ? 'bg-expense-50 border-expense-300' : 'bg-amber-50 border-amber-300'
-        const textColor = isOverdue || isDueToday ? 'text-expense-700' : 'text-amber-700'
-        const iconColor = isOverdue || isDueToday ? 'text-expense-500' : 'text-amber-500'
-        return (
-          <div key={alert.card.id} className={cn('rounded-2xl p-4 border flex items-center gap-3', color)}>
-            <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', isOverdue || isDueToday ? 'bg-expense-100' : 'bg-amber-100')}>
-              <Bell className={cn('w-4 h-4', iconColor)} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={cn('font-bold text-sm', textColor)}>💳 {alert.card.name} · {label}</p>
-              <p className="text-slate-600 text-xs mt-0.5">Fatura de <span className="font-semibold">{formatCurrency(alert.total)}</span> aguardando confirmação</p>
-            </div>
-            <button
-              onClick={() => {
-                setIndividuallyPaid(new Set())
-                setConfirmPayCard({
-                  ...alert,
-                  txs: filtered.filter(t => alert.txIds.includes(t.id)).map(t => ({
-                    id: t.id, description: t.description, date: t.date, amount: t.amount,
-                  })),
-                })
-              }}
-              className="shrink-0 bg-primary-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-primary-600 transition-colors"
-            >
-              Pagar
-            </button>
-          </div>
-        )
-      })}
-
       {/* 4 Métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard label="Entradas" value={totalIncome} change={incomeChange} type="income" icon={TrendingUp} periodName={periodName} />
@@ -519,6 +470,7 @@ export default function DashboardPage() {
               const days = pending.daysUntilDue
               const isOverdue  = days !== null && days < 0
               const isDueToday = days === 0
+              const isUrgent   = days !== null && days <= 3
               const dueLabel = days === null
                 ? 'Sem data de vencimento'
                 : days < 0
@@ -527,10 +479,18 @@ export default function DashboardPage() {
                     ? 'Vence hoje'
                     : `Vence em ${days} dia${days > 1 ? 's' : ''}`
               return (
-                <div key={pending.card.id} className="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0">
+                <div
+                  key={pending.card.id}
+                  className={cn(
+                    'flex items-center gap-3 py-3 px-3 rounded-xl border-b border-slate-50 last:border-0 -mx-3',
+                    isOverdue || isDueToday ? 'bg-expense-50' : isUrgent ? 'bg-amber-50' : ''
+                  )}
+                >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">💳 {pending.card.name}</p>
-                    <p className={cn('text-xs', isOverdue || isDueToday ? 'text-expense-500 font-semibold' : 'text-slate-400')}>{dueLabel}</p>
+                    <p className={cn('text-xs font-semibold', isOverdue || isDueToday ? 'text-expense-500' : isUrgent ? 'text-amber-500' : 'text-slate-400')}>
+                      {dueLabel}
+                    </p>
                   </div>
                   <div className="text-right shrink-0 mr-2">
                     <p className="text-sm font-bold text-expense-500">{formatCurrency(pending.total)}</p>
@@ -546,9 +506,12 @@ export default function DashboardPage() {
                         })),
                       })
                     }}
-                    className="shrink-0 bg-primary-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-primary-600 transition-colors"
+                    className={cn(
+                      'shrink-0 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors',
+                      isOverdue || isDueToday ? 'bg-expense-500 hover:bg-expense-600' : 'bg-primary-500 hover:bg-primary-600'
+                    )}
                   >
-                    Ver e pagar
+                    {isOverdue ? 'Pagar já' : isDueToday ? 'Pagar hoje' : 'Ver e pagar'}
                   </button>
                 </div>
               )
@@ -752,48 +715,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Registros do período */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-800">Registros do período</h3>
-          <button onClick={() => router.push('/timeline')} className="text-sm text-primary-500 font-medium hover:underline">
-            Ver todos
-          </button>
-        </div>
-        {recentTx.length === 0 ? (
-          <div className="text-center py-8">
-            <Mic className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Nenhum registro neste período.</p>
-            <button onClick={() => router.push('/registrar')} className="mt-3 text-sm text-primary-500 font-semibold hover:underline">
-              Registrar agora
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {recentTx.map((t) => (
-              <div key={t.id} className="flex items-center gap-3">
-                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                  t.type === 'income' ? 'bg-income-50' : 'bg-expense-50'
-                )}>
-                  {t.type === 'income'
-                    ? <TrendingUp className="w-4 h-4 text-income-500" />
-                    : <TrendingDown className="w-4 h-4 text-expense-500" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{t.description}</p>
-                  <p className="text-xs text-slate-400">{t.category}</p>
-                </div>
-                <span className={cn('text-sm font-semibold shrink-0',
-                  t.type === 'income' ? 'text-income-500' : 'text-expense-500'
-                )}>
-                  {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Modal confirmação de pagamento */}
       {confirmPayCard && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => { setConfirmPayCard(null); setIndividuallyPaid(new Set()) }}>
@@ -884,6 +805,8 @@ export default function DashboardPage() {
                     setPaidAlerts(prev => { const s = new Set(prev); s.add(confirmPayCard.card.id); return s })
                     setConfirmPayCard(null)
                     setIndividuallyPaid(new Set())
+                    setPaySuccess(true)
+                    setTimeout(() => setPaySuccess(false), 4000)
                   }}
                   className="w-full bg-income-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-income-600 transition-colors"
                 >
