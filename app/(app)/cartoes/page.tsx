@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react'
 import {
   Plus, X, Check, TrendingUp, TrendingDown, CreditCard,
-  Building2, User, Trash2, Edit2, ChevronLeft,
+  Building2, User, Trash2, Edit2, ChevronLeft, CheckCircle, BarChart2,
 } from 'lucide-react'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import { formatCurrency, formatTime, cn } from '@/lib/utils'
@@ -11,7 +11,11 @@ import ErrorBanner from '@/components/shared/ErrorBanner'
 import { formatError } from '@/lib/errors'
 import type { ErrorCode } from '@/lib/errors'
 import type { CreditCard as CC, Mode } from '@/types'
-import { isSameMonth } from 'date-fns'
+import { isSameMonth, subMonths, format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import {
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
+} from 'recharts'
 
 const CARD_COLORS = [
   { label: 'Roxo', value: 'from-purple-600 to-indigo-700' },
@@ -24,12 +28,14 @@ const CARD_COLORS = [
   { label: 'Vermelho', value: 'from-red-500 to-rose-700' },
 ]
 
+const CATEGORY_COLORS = ['#6366F1', '#10B981', '#F43F5E', '#F59E0B', '#06B6D4', '#8B5CF6', '#EC4899']
+
 function emptyCard(mode: Mode): Omit<CC, 'id' | 'created_at'> {
   return { name: '', lastDigits: '', mode, color: CARD_COLORS[0].value, active: true }
 }
 
 export default function CartoesPage() {
-  const { cards, addCard, updateCard, removeCard, transactions, activeMode, profiles, activeProfileId } = useFinanceStore()
+  const { cards, addCard, updateCard, removeCard, transactions, updateTransaction, activeMode, profiles, activeProfileId } = useFinanceStore()
   const perms = getProfilePermissions(profiles, activeProfileId)
   const canManage = perms.canManageCards
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
@@ -40,6 +46,9 @@ export default function CartoesPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
+  const [payAllLoading, setPayAllLoading] = useState(false)
+  const [paySuccess, setPaySuccess] = useState(false)
+  const [individuallyPaid, setIndividuallyPaid] = useState<Set<string>>(new Set())
 
   const now = new Date()
 
@@ -103,22 +112,115 @@ export default function CartoesPage() {
     const spent = spendingByCard[selectedCard] || 0
     const pct = selectedCardData.limit ? Math.min(100, (spent / selectedCardData.limit) * 100) : null
 
-    // Category breakdown for this card
+    // Pending transactions (fatura em aberto)
+    const pendingTx = cardTransactions.filter(t => t.type === 'expense' && t.status === 'pending')
+
+    // Confirmed spend this month
+    const confirmedSpent = cardTransactions
+      .filter(t => t.type === 'expense' && t.status === 'confirmed' && isSameMonth(new Date(t.date), now))
+      .reduce((s, t) => s + t.amount, 0)
+
+    // Pending total
+    const pendingTotal = pendingTx.reduce((s, t) => s + t.amount, 0)
+
+    // Average last 6 months
+    const last6Months = Array.from({ length: 6 }, (_, i) => {
+      const d = subMonths(now, 5 - i)
+      const monthTxs = cardTransactions.filter(t =>
+        t.type === 'expense' && isSameMonth(new Date(t.date), d)
+      )
+      return {
+        label: format(d, 'MMM/yy', { locale: ptBR }),
+        total: monthTxs.reduce((s, t) => s + t.amount, 0),
+        isCurrentMonth: isSameMonth(d, now),
+      }
+    })
+    const avg6 = last6Months.reduce((s, m) => s + m.total, 0) / 6
+
+    // Due date calculation
+    let currentDueDate: Date | null = null
+    let daysUntilDue: number | null = null
+    if (selectedCardData.dueDay) {
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      const cutoff = selectedCardData.closingDay ?? selectedCardData.dueDay
+      let month = today.getMonth()
+      let year = today.getFullYear()
+      if (today.getDate() >= cutoff) month += 1
+      while (month > 11) { month -= 12; year++ }
+      currentDueDate = new Date(year, month, selectedCardData.dueDay)
+      currentDueDate.setHours(0, 0, 0, 0)
+      daysUntilDue = Math.ceil((currentDueDate.getTime() - today.getTime()) / 86400000)
+    }
+
+    // Remaining to pay (pending and not yet individually paid)
+    const remainingToPayTx = pendingTx.filter(t => !individuallyPaid.has(t.id))
+    const remainingTotal = remainingToPayTx.reduce((s, t) => s + t.amount, 0)
+
+    // Category breakdown for this card (this month)
     const catBreakdown = cardTransactions
       .filter(t => t.type === 'expense' && isSameMonth(new Date(t.date), now))
       .reduce((acc, t) => {
         acc[t.category] = (acc[t.category] || 0) + t.amount
         return acc
       }, {} as Record<string, number>)
-
     const catList = Object.entries(catBreakdown).sort((a, b) => b[1] - a[1])
+
+    // Previous 3 months (excluding current)
+    const prevMonths = Array.from({ length: 3 }, (_, i) => {
+      const d = subMonths(now, 3 - i)
+      const monthTxs = cardTransactions.filter(t =>
+        t.type === 'expense' && isSameMonth(new Date(t.date), d)
+      )
+      return {
+        label: format(d, 'MMMM/yy', { locale: ptBR }),
+        total: monthTxs.reduce((s, t) => s + t.amount, 0),
+      }
+    })
+
+    const handlePayAll = async () => {
+      setPayAllLoading(true)
+      try {
+        const toPayIds = pendingTx.filter(t => !individuallyPaid.has(t.id)).map(t => t.id)
+        await Promise.all(toPayIds.map(id => updateTransaction(id, { status: 'confirmed' })))
+        setPaySuccess(true)
+        setIndividuallyPaid(new Set())
+        setTimeout(() => setPaySuccess(false), 3000)
+      } catch (err) {
+        setAppError(formatError(err))
+      } finally {
+        setPayAllLoading(false)
+      }
+    }
+
+    const handlePayItem = async (txId: string) => {
+      try {
+        await updateTransaction(txId, { status: 'confirmed' })
+        setIndividuallyPaid(prev => new Set(prev).add(txId))
+      } catch (err) {
+        setAppError(formatError(err))
+      }
+    }
 
     return (
       <div className="max-w-2xl mx-auto p-4 lg:p-8 space-y-5">
         {/* Back */}
-        <button onClick={() => setSelectedCard(null)} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-medium text-sm">
+        <button
+          onClick={() => { setSelectedCard(null); setIndividuallyPaid(new Set()); setPaySuccess(false) }}
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-medium text-sm"
+        >
           <ChevronLeft className="w-4 h-4" /> Todos os cartões
         </button>
+
+        {appError && (
+          <ErrorBanner
+            title={appError.title}
+            description={appError.description}
+            action={appError.action}
+            code={appError.code}
+            severity={appError.severity}
+            onClose={() => setAppError(null)}
+          />
+        )}
 
         {/* Card visual */}
         <div className={cn('rounded-3xl p-6 text-white relative overflow-hidden bg-gradient-to-br', selectedCardData.color)}>
@@ -139,24 +241,173 @@ export default function CartoesPage() {
           </div>
         </div>
 
-        {/* Spending this month */}
-        <div className="card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-600">Gasto este mês</p>
-            <p className="text-2xl font-bold text-expense-500">{formatCurrency(spent)}</p>
+        {/* 3 quick metrics */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="card p-4 text-center space-y-1">
+            <p className="text-xs text-slate-500 font-medium">Este mês</p>
+            <p className="text-base font-bold text-expense-500 leading-tight">{formatCurrency(confirmedSpent)}</p>
           </div>
-          {pct !== null && (
+          <div className={cn('card p-4 text-center space-y-1', pendingTotal > 0 && 'border-amber-300 bg-amber-50')}>
+            <p className="text-xs text-slate-500 font-medium">Pendente</p>
+            <p className={cn('text-base font-bold leading-tight', pendingTotal > 0 ? 'text-amber-500' : 'text-slate-400')}>
+              {formatCurrency(pendingTotal)}
+            </p>
+          </div>
+          <div className="card p-4 text-center space-y-1">
+            <p className="text-xs text-slate-500 font-medium">Média/mês</p>
+            <p className="text-base font-bold text-slate-700 leading-tight">{formatCurrency(avg6)}</p>
+          </div>
+        </div>
+
+        {/* Spending bar */}
+        {pct !== null && (
+          <div className="card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-600">Uso do limite</p>
+              <p className={cn('text-xl font-bold', pct > 80 ? 'text-expense-500' : pct > 50 ? 'text-amber-500' : 'text-income-500')}>
+                {pct.toFixed(0)}%
+              </p>
+            </div>
+            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={cn('h-full rounded-full transition-all', pct > 80 ? 'bg-expense-500' : pct > 50 ? 'bg-amber-400' : 'bg-income-500')}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-slate-400">
+              <span>Gasto: {formatCurrency(spent)}</span>
+              <span>Limite: {formatCurrency(selectedCardData.limit!)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Fatura em aberto */}
+        {paySuccess ? (
+          <div className="card p-5 flex items-center gap-3 bg-income-50 border-income-200">
+            <CheckCircle className="w-6 h-6 text-income-500 shrink-0" />
             <div>
-              <div className="flex justify-between text-xs text-slate-400 mb-1.5">
-                <span>{pct.toFixed(0)}% do limite</span>
-                <span>Limite: {formatCurrency(selectedCardData.limit!)}</span>
+              <p className="font-semibold text-income-700">Fatura paga!</p>
+              <p className="text-sm text-income-600">Saldo atualizado com sucesso.</p>
+            </div>
+          </div>
+        ) : pendingTx.length > 0 && (
+          <div className="card p-5 space-y-4 border-amber-200">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-bold text-slate-700">Fatura em aberto</p>
+                {currentDueDate && daysUntilDue !== null && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Vence {format(currentDueDate, "dd 'de' MMMM", { locale: ptBR })}
+                    {daysUntilDue === 0 ? ' — hoje!' : daysUntilDue === 1 ? ' — amanhã' : ` — em ${daysUntilDue} dias`}
+                  </p>
+                )}
               </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className={cn('h-full rounded-full transition-all', pct > 80 ? 'bg-expense-500' : pct > 50 ? 'bg-amber-400' : 'bg-income-500')}
-                  style={{ width: `${pct}%` }}
-                />
+              <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2.5 py-1 rounded-full">
+                {formatCurrency(remainingTotal)}
+              </span>
+            </div>
+
+            {/* Pending items */}
+            <div className="space-y-2">
+              {pendingTx.map(t => {
+                const paid = individuallyPaid.has(t.id)
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => !paid && handlePayItem(t.id)}
+                    disabled={paid}
+                    className={cn(
+                      'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
+                      paid
+                        ? 'border-income-200 bg-income-50 opacity-60'
+                        : 'border-slate-200 hover:border-amber-300 active:scale-[0.99]'
+                    )}
+                  >
+                    <div className={cn(
+                      'w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                      paid ? 'border-income-400 bg-income-400' : 'border-slate-300'
+                    )}>
+                      {paid && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn('text-sm font-semibold truncate', paid ? 'line-through text-slate-400' : 'text-slate-800')}>
+                        {t.description}
+                      </p>
+                      <p className="text-xs text-slate-400">{formatTime(t.date)} · {t.category}</p>
+                    </div>
+                    <span className={cn('font-bold text-sm shrink-0', paid ? 'text-slate-400' : 'text-expense-500')}>
+                      {formatCurrency(t.amount)}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Pay all button or done state */}
+            {remainingToPayTx.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 py-3 text-income-600 font-semibold text-sm">
+                <CheckCircle className="w-5 h-5" />
+                Tudo confirmado!
               </div>
+            ) : (
+              <button
+                onClick={handlePayAll}
+                disabled={payAllLoading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-income-500 text-white font-bold text-sm hover:bg-income-600 active:scale-[0.99] transition-all disabled:opacity-60"
+              >
+                <CheckCircle className="w-4 h-4" />
+                {payAllLoading ? 'Processando...' : `Paguei tudo — ${formatCurrency(remainingTotal)}`}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Gráfico últimos 6 meses */}
+        <div className="card p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-slate-400" />
+            <p className="text-sm font-semibold text-slate-700">Gastos — últimos 6 meses</p>
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={last6Months} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide />
+              <Tooltip
+                formatter={(value: number) => [formatCurrency(value), 'Gasto']}
+                contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 13 }}
+                cursor={{ fill: '#f8fafc' }}
+              />
+              <Bar
+                dataKey="total"
+                radius={[6, 6, 0, 0]}
+                fill="#6366F1"
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Histórico de faturas — últimas 3 */}
+        <div className="card p-5 space-y-3">
+          <p className="text-sm font-semibold text-slate-700">Histórico de faturas</p>
+          {prevMonths.every(m => m.total === 0) ? (
+            <p className="text-xs text-slate-400">Sem faturas anteriores registradas.</p>
+          ) : (
+            <div className="space-y-2">
+              {prevMonths.map((m, i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                  <p className="text-sm text-slate-600 capitalize">{m.label}</p>
+                  <p className={cn('text-sm font-bold', m.total > 0 ? 'text-expense-500' : 'text-slate-400')}>
+                    {formatCurrency(m.total)}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -164,21 +415,26 @@ export default function CartoesPage() {
         {/* Category breakdown */}
         {catList.length > 0 && (
           <div className="card p-5">
-            <p className="text-sm font-semibold text-slate-700 mb-3">Onde mais gastei este mês</p>
+            <p className="text-sm font-semibold text-slate-700 mb-3">Por categoria — este mês</p>
             <div className="space-y-2.5">
-              {catList.map(([cat, amt]) => (
-                <div key={cat} className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="font-medium text-slate-700">{cat}</span>
-                      <span className="font-bold text-expense-500">{formatCurrency(amt)}</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary-400 rounded-full" style={{ width: `${(amt / spent) * 100}%` }} />
+              {catList.map(([cat, amt], i) => {
+                const pctCat = spent > 0 ? (amt / spent) * 100 : 0
+                const color = CATEGORY_COLORS[i % CATEGORY_COLORS.length]
+                return (
+                  <div key={cat} className="flex items-center gap-3">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+                    <div className="flex-1">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-slate-700">{cat}</span>
+                        <span className="font-bold text-slate-600 text-xs">{pctCat.toFixed(0)}% · {formatCurrency(amt)}</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pctCat}%`, background: color }} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -204,6 +460,12 @@ export default function CartoesPage() {
                       <span>{formatTime(t.date)}</span>
                       <span>·</span>
                       <span>{t.category}</span>
+                      {t.status === 'pending' && (
+                        <>
+                          <span>·</span>
+                          <span className="text-amber-500 font-medium">pendente</span>
+                        </>
+                      )}
                     </div>
                   </div>
                   <span className={cn('font-bold text-sm shrink-0', t.type === 'income' ? 'text-income-500' : 'text-expense-500')}>
