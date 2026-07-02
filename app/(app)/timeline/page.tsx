@@ -2,7 +2,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import {
   TrendingUp, TrendingDown, Trash2, Mic, Calendar, ChevronDown, X,
-  Pencil, Check, Building2, User, Plus, Search, Loader2, Tag, CreditCard, RefreshCw,
+  Pencil, Check, CheckCircle, Building2, User, Plus, Search, Loader2, Tag, CreditCard, RefreshCw,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
@@ -250,6 +250,27 @@ function EditModal({ tx, onClose, onSave, onDelete, categoriesPersonal, categori
                   Cancelar
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Confirmar pagamento — só para transações pendentes */}
+          {tx.status === 'pending' && canEdit && !confirmDel && (
+            <div className="bg-income-50 border-2 border-income-200 rounded-2xl p-4 space-y-2">
+              <p className="text-sm font-semibold text-income-700 text-center">💳 Fatura aguardando pagamento</p>
+              <button
+                onClick={async () => {
+                  setSaving(true)
+                  try {
+                    await onSave({ status: 'confirmed' })
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+                disabled={saving || deleting}
+                className="w-full py-3 bg-income-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-income-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed text-sm"
+              >
+                <CheckCircle className="w-4 h-4" /> Confirmar pagamento
+              </button>
             </div>
           )}
 

@@ -76,9 +76,13 @@ export default function DashboardPage() {
   const { transactions, viewMode, setViewMode, cards, updateTransaction, recurrences } = useFinanceStore()
   const [periodType, setPeriodType] = useState<PeriodType>('month')
   const [anchor, setAnchor] = useState<Date>(new Date())
-  const [confirmPayCard, setConfirmPayCard] = useState<{ card: CC; total: number; txIds: string[]; dueDate: Date; daysUntilDue: number } | null>(null)
+  const [confirmPayCard, setConfirmPayCard] = useState<{
+    card: CC; total: number; txIds: string[]; dueDate: Date | null; daysUntilDue: number | null
+    txs: { id: string; description: string; date: string; amount: number }[]
+  } | null>(null)
   const [paidAlerts, setPaidAlerts] = useState<Set<string>>(new Set())
   const [payError, setPayError] = useState<string | null>(null)
+  const [individuallyPaid, setIndividuallyPaid] = useState<Set<string>>(new Set())
 
   const filtered = useMemo(() =>
     transactions.filter(t => viewMode === 'all' || t.mode === viewMode),
@@ -272,14 +276,63 @@ export default function DashboardPage() {
     return result.filter(a => !paidAlerts.has(a.card.id)).sort((a, b) => a.daysUntilDue - b.daysUntilDue)
   }, [cards, filtered, paidAlerts])
 
+  const pendingByCard = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const result: { card: CC; total: number; txIds: string[]; dueDate: Date | null; daysUntilDue: number | null }[] = []
+    for (const card of cards) {
+      if (!card.active || paidAlerts.has(card.id)) continue
+      const pendingTx = filtered.filter(t => t.card_id === card.id && t.status === 'pending' && t.type === 'expense')
+      if (pendingTx.length === 0) continue
+      let dueDate: Date | null = null
+      let daysUntilDue: number | null = null
+      if (card.dueDay) {
+        const cutoff = card.closingDay ?? card.dueDay
+        let month = today.getMonth()
+        let year = today.getFullYear()
+        if (today.getDate() >= cutoff) month += 1
+        while (month > 11) { month -= 12; year++ }
+        dueDate = new Date(year, month, card.dueDay)
+        dueDate.setHours(0, 0, 0, 0)
+        daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      }
+      result.push({ card, total: pendingTx.reduce((s, t) => s + t.amount, 0), txIds: pendingTx.map(t => t.id), dueDate, daysUntilDue })
+    }
+    return result.sort((a, b) => {
+      if (a.daysUntilDue === null) return 1
+      if (b.daysUntilDue === null) return -1
+      return a.daysUntilDue - b.daysUntilDue
+    })
+  }, [cards, filtered, paidAlerts])
+
+  const remainingTxIds = useMemo(() =>
+    confirmPayCard ? confirmPayCard.txIds.filter(id => !individuallyPaid.has(id)) : [],
+    [confirmPayCard, individuallyPaid]
+  )
+  const remainingTotal = useMemo(() =>
+    confirmPayCard ? confirmPayCard.txs.filter(t => !individuallyPaid.has(t.id)).reduce((s, t) => s + t.amount, 0) : 0,
+    [confirmPayCard, individuallyPaid]
+  )
+
   async function handleMarkAsPaid(txIds: string[], cardId: string) {
     setPayError(null)
     try {
       await Promise.all(txIds.map(id => updateTransaction(id, { status: 'confirmed' })))
       setPaidAlerts(prev => { const s = new Set(prev); s.add(cardId); return s })
       setConfirmPayCard(null)
+      setIndividuallyPaid(new Set())
     } catch {
       setPayError('Erro ao confirmar pagamento. Tente novamente.')
+    }
+  }
+
+  async function handlePayItem(txId: string) {
+    setPayError(null)
+    try {
+      await updateTransaction(txId, { status: 'confirmed' })
+      setIndividuallyPaid(prev => new Set(prev).add(txId))
+    } catch {
+      setPayError('Erro ao confirmar item. Tente novamente.')
     }
   }
 
@@ -409,7 +462,18 @@ export default function DashboardPage() {
               <p className={cn('font-bold text-sm', textColor)}>💳 {alert.card.name} · {label}</p>
               <p className="text-slate-600 text-xs mt-0.5">Fatura de <span className="font-semibold">{formatCurrency(alert.total)}</span> aguardando confirmação</p>
             </div>
-            <button onClick={() => setConfirmPayCard(alert)} className="shrink-0 bg-primary-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-primary-600 transition-colors">
+            <button
+              onClick={() => {
+                setIndividuallyPaid(new Set())
+                setConfirmPayCard({
+                  ...alert,
+                  txs: filtered.filter(t => alert.txIds.includes(t.id)).map(t => ({
+                    id: t.id, description: t.description, date: t.date, amount: t.amount,
+                  })),
+                })
+              }}
+              className="shrink-0 bg-primary-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-primary-600 transition-colors"
+            >
               Pagar
             </button>
           </div>
@@ -437,6 +501,61 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Painel A Pagar — todos os cartões com saldo pendente */}
+      {pendingByCard.length > 0 && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+              <CreditCard className="w-4 h-4 text-amber-500" />
+            </div>
+            <h3 className="font-semibold text-slate-800">A Pagar</h3>
+            <span className="ml-auto text-sm font-bold text-amber-600">
+              {formatCurrency(pendingByCard.reduce((s, p) => s + p.total, 0))}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {pendingByCard.map(pending => {
+              const days = pending.daysUntilDue
+              const isOverdue  = days !== null && days < 0
+              const isDueToday = days === 0
+              const dueLabel = days === null
+                ? 'Sem data de vencimento'
+                : days < 0
+                  ? `Vencida há ${Math.abs(days)} dia${Math.abs(days) > 1 ? 's' : ''}`
+                  : days === 0
+                    ? 'Vence hoje'
+                    : `Vence em ${days} dia${days > 1 ? 's' : ''}`
+              return (
+                <div key={pending.card.id} className="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">💳 {pending.card.name}</p>
+                    <p className={cn('text-xs', isOverdue || isDueToday ? 'text-expense-500 font-semibold' : 'text-slate-400')}>{dueLabel}</p>
+                  </div>
+                  <div className="text-right shrink-0 mr-2">
+                    <p className="text-sm font-bold text-expense-500">{formatCurrency(pending.total)}</p>
+                    <p className="text-xs text-slate-400">{pending.txIds.length} item{pending.txIds.length > 1 ? 's' : ''}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIndividuallyPaid(new Set())
+                      setConfirmPayCard({
+                        ...pending,
+                        txs: filtered.filter(t => pending.txIds.includes(t.id)).map(t => ({
+                          id: t.id, description: t.description, date: t.date, amount: t.amount,
+                        })),
+                      })
+                    }}
+                    className="shrink-0 bg-primary-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-primary-600 transition-colors"
+                  >
+                    Ver e pagar
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Banner de saúde + IA side-by-side */}
       <div className="grid lg:grid-cols-2 gap-4">
@@ -677,8 +796,10 @@ export default function DashboardPage() {
 
       {/* Modal confirmação de pagamento */}
       {confirmPayCard && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setConfirmPayCard(null)}>
-          <div className="w-full bg-white rounded-t-3xl p-6 pb-10 space-y-5 animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => { setConfirmPayCard(null); setIndividuallyPaid(new Set()) }}>
+          <div className="w-full bg-white rounded-t-3xl p-6 pb-10 space-y-4 animate-slide-up max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 bg-primary-100 rounded-xl flex items-center justify-center">
@@ -686,33 +807,94 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="font-bold text-slate-800">{confirmPayCard.card.name}</p>
-                  <p className="text-xs text-slate-400">Vencimento: {format(confirmPayCard.dueDate, "d 'de' MMMM", { locale: ptBR })}</p>
+                  <p className="text-xs text-slate-400">
+                    {confirmPayCard.dueDate
+                      ? `Vencimento: ${format(confirmPayCard.dueDate, "d 'de' MMMM", { locale: ptBR })}`
+                      : 'Sem data de vencimento'}
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setConfirmPayCard(null)} className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center">
+              <button onClick={() => { setConfirmPayCard(null); setIndividuallyPaid(new Set()) }} className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center">
                 <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
-            <div className="bg-slate-50 rounded-2xl p-4 text-center">
-              <p className="text-xs text-slate-400 mb-1">Total da fatura</p>
-              <p className="text-3xl font-bold text-slate-800">{formatCurrency(confirmPayCard.total)}</p>
-              <p className="text-xs text-slate-400 mt-1">{confirmPayCard.txIds.length} lançamento{confirmPayCard.txIds.length > 1 ? 's' : ''}</p>
+
+            {/* Lista individual de itens */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Itens da fatura — toque para confirmar</p>
+              {confirmPayCard.txs.map(tx => {
+                const isPaid = individuallyPaid.has(tx.id)
+                return (
+                  <button
+                    key={tx.id}
+                    onClick={() => !isPaid && handlePayItem(tx.id)}
+                    disabled={isPaid}
+                    className={cn(
+                      'w-full flex items-center gap-3 p-3 rounded-2xl transition-all text-left',
+                      isPaid ? 'bg-income-50' : 'bg-slate-50 hover:bg-slate-100 active:scale-[0.99]'
+                    )}
+                  >
+                    <div className={cn('w-7 h-7 rounded-xl flex items-center justify-center shrink-0',
+                      isPaid ? 'bg-income-200' : 'bg-white border-2 border-slate-200'
+                    )}>
+                      {isPaid && <CheckCircle className="w-4 h-4 text-income-600" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn('text-sm font-medium truncate', isPaid ? 'line-through text-slate-400' : 'text-slate-800')}>
+                        {tx.description}
+                      </p>
+                      <p className="text-xs text-slate-400">{format(parseISO(tx.date), "d 'de' MMM", { locale: ptBR })}</p>
+                    </div>
+                    <span className={cn('text-sm font-semibold shrink-0', isPaid ? 'text-slate-400 line-through' : 'text-expense-500')}>
+                      -{formatCurrency(tx.amount)}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+
+            {/* Total restante */}
+            <div className={cn('rounded-2xl p-4 text-center', remainingTxIds.length === 0 ? 'bg-income-50' : 'bg-slate-50')}>
+              <p className="text-xs text-slate-400 mb-1">
+                {remainingTxIds.length === 0 ? 'Tudo confirmado!' : 'Total restante'}
+              </p>
+              <p className={cn('text-3xl font-bold', remainingTxIds.length === 0 ? 'text-income-500' : 'text-slate-800')}>
+                {remainingTxIds.length === 0 ? '✓ Pago' : formatCurrency(remainingTotal)}
+              </p>
+              {remainingTxIds.length > 0 && (
+                <p className="text-xs text-slate-400 mt-1">{remainingTxIds.length} item{remainingTxIds.length > 1 ? 's' : ''} pendente{remainingTxIds.length > 1 ? 's' : ''}</p>
+              )}
+            </div>
+
             {payError && (
               <p className="text-xs text-expense-600 bg-expense-50 border border-expense-200 rounded-xl px-3 py-2 text-center">{payError}</p>
             )}
+
             <div className="space-y-2">
+              {remainingTxIds.length > 0 ? (
+                <button
+                  onClick={() => handleMarkAsPaid(remainingTxIds, confirmPayCard.card.id)}
+                  className="w-full bg-income-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-income-600 transition-colors"
+                >
+                  <CheckCircle className="w-5 h-5" /> Paguei tudo — {formatCurrency(remainingTotal)}
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setPaidAlerts(prev => { const s = new Set(prev); s.add(confirmPayCard.card.id); return s })
+                    setConfirmPayCard(null)
+                    setIndividuallyPaid(new Set())
+                  }}
+                  className="w-full bg-income-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-income-600 transition-colors"
+                >
+                  <CheckCircle className="w-5 h-5" /> Concluído
+                </button>
+              )}
               <button
-                onClick={() => handleMarkAsPaid(confirmPayCard.txIds, confirmPayCard.card.id)}
-                className="w-full bg-income-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-income-600 transition-colors"
-              >
-                <CheckCircle className="w-5 h-5" /> Paguei tudo — {formatCurrency(confirmPayCard.total)}
-              </button>
-              <button
-                onClick={() => { setConfirmPayCard(null); setPayError(null) }}
+                onClick={() => { setConfirmPayCard(null); setPayError(null); setIndividuallyPaid(new Set()) }}
                 className="w-full bg-slate-100 text-slate-600 font-semibold py-3 rounded-2xl text-sm hover:bg-slate-200 transition-colors"
               >
-                Ainda não paguei
+                {remainingTxIds.length === 0 ? 'Fechar' : 'Ainda não paguei'}
               </button>
             </div>
           </div>

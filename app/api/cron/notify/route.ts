@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
 
     // Check credit card bills due in 1-3 days
     const { data: cards } = await supabase
-      .from('cards')
+      .from('credit_cards')
       .select('id, name, due_day')
       .eq('user_id', userId)
 
