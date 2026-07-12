@@ -776,6 +776,17 @@ export const HELP_CONTENT: Record<string, HelpEntry> = {
     ],
   },
 
+  'prod.focus': {
+    title: 'Sessão de Foco',
+    description: 'Um bloco de tempo cronometrado dedicado a uma única tarefa, sem distrações. Baseado na técnica Pomodoro adaptada: períodos longos de foco (padrão 75 min) intercalados com pausas ativas (15 min).',
+    tips: [
+      'Cada interrupção que você registrar (botão "+") fica salva como dado de contexto — ajuda a identificar padrões que quebram seu foco.',
+      'Durante a pausa, levante, mova o corpo, beba água. Não fique na tela.',
+      'Quando encerrar a sessão, registre o próximo passo para retomar sem esforço cognitivo.',
+    ],
+    example: 'Abrir o arquivo de proposta → revisar os itens 3 e 4 → enviar para aprovação',
+  },
+
   'prod.capture': {
     title: 'Captura Rápida',
     description: 'Um lugar para registrar qualquer pensamento, ideia ou tarefa sem precisar organizar na hora. O objetivo é esvaziar a mente rapidamente e processar depois com calma.',

@@ -1,8 +1,9 @@
 'use client'
 import { useState, useMemo } from 'react'
 import {
-  Flame, Plus, CheckCircle2, Circle, X, ChevronDown, Target, Pencil, Check,
+  Flame, Plus, CheckCircle2, Circle, X, ChevronDown, Target, Pencil, Check, Timer,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { format, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useProductivityStore } from '@/lib/store/useProductivityStore'
@@ -15,6 +16,7 @@ import type { ErrorCode } from '@/lib/errors'
 import type { ProductivityTask } from '@/types/productivity'
 
 export default function HojePage() {
+  const router = useRouter()
   const {
     settings, tasks, todayFocus, weeklyOutcomes, areas,
     setTodayFocus, addTask, completeTask, addWeeklyOutcome, updateWeeklyOutcome,
@@ -254,6 +256,22 @@ export default function HojePage() {
           </button>
         )}
       </div>
+
+      {/* ── Botão Iniciar Foco ───────────────────────────────────────────── */}
+      {currentMission && (
+        <button
+          onClick={() => {
+            const url = missionTask?.id
+              ? `/produtividade/foco?taskId=${missionTask.id}`
+              : '/produtividade/foco'
+            router.push(url)
+          }}
+          className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-2xl shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-orange-400 transition-all active:scale-[0.98]"
+        >
+          <Timer className="w-5 h-5" />
+          Iniciar sessão de foco
+        </button>
+      )}
 
       {/* ── Tarefas secundárias ────────────────────────────────────────── */}
       {(secondaryTasks.length > 0 || currentMission) && (
