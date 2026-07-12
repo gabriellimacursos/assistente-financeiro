@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Plus, X, Check, TrendingUp, TrendingDown, CreditCard,
   Building2, User, Trash2, Edit2, ChevronLeft, CheckCircle, BarChart2, Pencil,
@@ -59,6 +59,13 @@ export default function CartoesPage() {
   const [individuallyPaid, setIndividuallyPaid] = useState<Set<string>>(new Set())
   const [confirmingItemId, setConfirmingItemId] = useState<string | null>(null)
   const [showPayAllConfirm, setShowPayAllConfirm] = useState(false)
+
+  // Cancela confirmação automaticamente após 4 segundos
+  useEffect(() => {
+    if (!confirmingItemId) return
+    const timer = setTimeout(() => setConfirmingItemId(null), 4000)
+    return () => clearTimeout(timer)
+  }, [confirmingItemId])
 
   const now = new Date()
 
@@ -363,12 +370,21 @@ export default function CartoesPage() {
                     {paid ? (
                       <CheckCircle className="w-5 h-5 text-income-400 shrink-0" />
                     ) : confirming ? (
-                      <button
-                        onClick={() => { handlePayItem(t.id); setConfirmingItemId(null) }}
-                        className="shrink-0 px-3 py-1.5 rounded-xl bg-income-500 text-white text-xs font-bold whitespace-nowrap"
-                      >
-                        Confirmar ✓
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => setConfirmingItemId(null)}
+                          className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-300 transition-colors"
+                          title="Cancelar"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => { handlePayItem(t.id); setConfirmingItemId(null) }}
+                          className="shrink-0 px-2.5 py-1.5 rounded-xl bg-income-500 text-white text-xs font-bold whitespace-nowrap"
+                        >
+                          Confirmar ✓
+                        </button>
+                      </div>
                     ) : (
                       <button
                         onClick={() => setConfirmingItemId(t.id)}
