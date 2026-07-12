@@ -5,7 +5,7 @@ import {
   Building2, User, Trash2, Edit2, ChevronLeft, CheckCircle, BarChart2, Pencil,
 } from 'lucide-react'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
-import { formatCurrency, formatTime, cn } from '@/lib/utils'
+import { formatCurrency, formatDate, formatTime, cn } from '@/lib/utils'
 import HelpTooltip from '@/components/shared/HelpTooltip'
 import ErrorBanner from '@/components/shared/ErrorBanner'
 import EditTransactionModal from '@/components/shared/EditTransactionModal'
@@ -57,6 +57,8 @@ export default function CartoesPage() {
   const [payAllLoading, setPayAllLoading] = useState(false)
   const [paySuccess, setPaySuccess] = useState(false)
   const [individuallyPaid, setIndividuallyPaid] = useState<Set<string>>(new Set())
+  const [confirmingItemId, setConfirmingItemId] = useState<string | null>(null)
+  const [showPayAllConfirm, setShowPayAllConfirm] = useState(false)
 
   const now = new Date()
 
@@ -71,13 +73,24 @@ export default function CartoesPage() {
     return map
   }, [transactions])
 
-  // Transactions for selected card
+  // Transactions for selected card (sorted newest first)
   const cardTransactions = useMemo(() => {
     if (!selectedCard) return []
     return transactions
       .filter(t => t.card_id === selectedCard)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [selectedCard, transactions])
+
+  // Grouped by date for display
+  const groupedCardTx = useMemo(() => {
+    const map = new Map<string, typeof cardTransactions>()
+    for (const t of cardTransactions) {
+      const key = t.date.split('T')[0]
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(t)
+    }
+    return Array.from(map.entries())
+  }, [cardTransactions])
 
   const selectedCardData = cards.find(c => c.id === selectedCard)
 
@@ -318,38 +331,53 @@ export default function CartoesPage() {
               </span>
             </div>
 
+            {/* Instrução */}
+            <p className="text-[11px] text-slate-400 -mt-2">
+              Toque no botão <span className="font-semibold text-slate-500">✓</span> de cada item para marcar como pago. Toque novamente para confirmar.
+            </p>
+
             {/* Pending items */}
             <div className="space-y-2">
               {pendingTx.map(t => {
                 const paid = individuallyPaid.has(t.id)
+                const confirming = confirmingItemId === t.id
                 return (
-                  <button
+                  <div
                     key={t.id}
-                    onClick={() => !paid && handlePayItem(t.id)}
-                    disabled={paid}
                     className={cn(
-                      'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
-                      paid
-                        ? 'border-income-200 bg-income-50 opacity-60'
-                        : 'border-slate-200 hover:border-amber-300 active:scale-[0.99]'
+                      'flex items-center gap-3 p-3 rounded-xl border-2 transition-all',
+                      paid ? 'border-income-200 bg-income-50 opacity-60' :
+                      confirming ? 'border-amber-400 bg-amber-50' :
+                      'border-slate-200'
                     )}
                   >
-                    <div className={cn(
-                      'w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
-                      paid ? 'border-income-400 bg-income-400' : 'border-slate-300'
-                    )}>
-                      {paid && <Check className="w-3 h-3 text-white" />}
-                    </div>
                     <div className="flex-1 min-w-0">
                       <p className={cn('text-sm font-semibold truncate', paid ? 'line-through text-slate-400' : 'text-slate-800')}>
                         {t.description}
                       </p>
-                      <p className="text-xs text-slate-400">{formatTime(t.date)} · {t.category}</p>
+                      <p className="text-xs text-slate-400">{formatDate(t.date + 'T12:00:00')} · {t.category}</p>
                     </div>
                     <span className={cn('font-bold text-sm shrink-0', paid ? 'text-slate-400' : 'text-expense-500')}>
                       {formatCurrency(t.amount)}
                     </span>
-                  </button>
+                    {paid ? (
+                      <CheckCircle className="w-5 h-5 text-income-400 shrink-0" />
+                    ) : confirming ? (
+                      <button
+                        onClick={() => { handlePayItem(t.id); setConfirmingItemId(null) }}
+                        className="shrink-0 px-3 py-1.5 rounded-xl bg-income-500 text-white text-xs font-bold whitespace-nowrap"
+                      >
+                        Confirmar ✓
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingItemId(t.id)}
+                        className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center shrink-0 hover:border-income-400 hover:bg-income-50 transition-all"
+                      >
+                        <Check className="w-4 h-4 text-slate-300" />
+                      </button>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -360,14 +388,33 @@ export default function CartoesPage() {
                 <CheckCircle className="w-5 h-5" />
                 Tudo confirmado!
               </div>
+            ) : showPayAllConfirm ? (
+              <div className="space-y-2">
+                <p className="text-xs text-center text-slate-500 font-semibold">Confirmar pagamento de {formatCurrency(remainingTotal)}?</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPayAllConfirm(false)}
+                    className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-2xl text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => { handlePayAll(); setShowPayAllConfirm(false) }}
+                    disabled={payAllLoading}
+                    className="flex-1 py-3 bg-income-500 text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-60"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {payAllLoading ? 'Processando...' : 'Confirmar tudo'}
+                  </button>
+                </div>
+              </div>
             ) : (
               <button
-                onClick={handlePayAll}
-                disabled={payAllLoading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-income-500 text-white font-bold text-sm hover:bg-income-600 active:scale-[0.99] transition-all disabled:opacity-60"
+                onClick={() => setShowPayAllConfirm(true)}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-income-500 text-white font-bold text-sm hover:bg-income-600 active:scale-[0.99] transition-all"
               >
                 <CheckCircle className="w-4 h-4" />
-                {payAllLoading ? 'Processando...' : `Paguei tudo — ${formatCurrency(remainingTotal)}`}
+                Paguei tudo — {formatCurrency(remainingTotal)}
               </button>
             )}
           </div>
@@ -449,46 +496,58 @@ export default function CartoesPage() {
           </div>
         )}
 
-        {/* Transaction list */}
+        {/* Transaction list com separadores de data */}
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Todos os lançamentos</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Todos os lançamentos</p>
           {cardTransactions.length === 0 ? (
             <div className="card p-8 text-center">
               <p className="text-slate-400 text-sm">Nenhum lançamento vinculado a este cartão ainda</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {cardTransactions.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setEditingTx(t)}
-                  className="card p-3.5 flex items-center gap-3 w-full text-left hover:shadow-card-hover transition-all active:scale-[0.99] group"
-                >
-                  <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                    t.type === 'income' ? 'bg-income-50' : 'bg-expense-50')}>
-                    {t.type === 'income' ? <TrendingUp className="w-4 h-4 text-income-500" /> : <TrendingDown className="w-4 h-4 text-expense-500" />}
+            <div className="space-y-4">
+              {groupedCardTx.map(([dateKey, txs]) => (
+                <div key={dateKey}>
+                  {/* Separador de data */}
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-xs font-bold text-slate-400">{formatDate(dateKey + 'T12:00:00')}</span>
+                    <div className="flex-1 h-px bg-slate-100" />
+                    <span className="text-xs text-slate-300">{txs.length} item{txs.length > 1 ? 's' : ''}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{t.description}</p>
-                    <div className="flex gap-1.5 text-xs text-slate-400 flex-wrap">
-                      <span>{formatTime(t.date)}</span>
-                      <span>·</span>
-                      <span>{t.category}</span>
-                      {t.status === 'pending' && (
-                        <>
-                          <span>·</span>
-                          <span className="text-amber-500 font-semibold">A pagar</span>
-                        </>
-                      )}
-                    </div>
+                  <div className="space-y-2">
+                    {txs.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setEditingTx(t)}
+                        className="card p-3.5 flex items-center gap-3 w-full text-left hover:shadow-card-hover transition-all active:scale-[0.99] group"
+                      >
+                        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                          t.type === 'income' ? 'bg-income-50' : 'bg-expense-50')}>
+                          {t.type === 'income' ? <TrendingUp className="w-4 h-4 text-income-500" /> : <TrendingDown className="w-4 h-4 text-expense-500" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate">{t.description}</p>
+                          <div className="flex gap-1.5 text-xs text-slate-400 flex-wrap">
+                            <span>{formatTime(t.date)}</span>
+                            <span>·</span>
+                            <span>{t.category}</span>
+                            {t.status === 'pending' && (
+                              <>
+                                <span>·</span>
+                                <span className="text-amber-500 font-semibold">A pagar</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={cn('font-bold text-sm', t.type === 'income' ? 'text-income-500' : 'text-expense-500')}>
+                            {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                          </span>
+                          <Pencil className="w-3.5 h-3.5 text-slate-300 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={cn('font-bold text-sm', t.type === 'income' ? 'text-income-500' : 'text-expense-500')}>
-                      {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                    </span>
-                    <Pencil className="w-3.5 h-3.5 text-slate-300 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
