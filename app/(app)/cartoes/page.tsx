@@ -355,7 +355,7 @@ export default function CartoesPage() {
                       <p className={cn('text-sm font-semibold truncate', paid ? 'line-through text-slate-400' : 'text-slate-800')}>
                         {t.description}
                       </p>
-                      <p className="text-xs text-slate-400">{formatDate(t.date + 'T12:00:00')} · {t.category}</p>
+                      <p className="text-xs text-slate-400">{formatDate(t.date.split('T')[0] + 'T12:00:00')} · {t.category}</p>
                     </div>
                     <span className={cn('font-bold text-sm shrink-0', paid ? 'text-slate-400' : 'text-expense-500')}>
                       {formatCurrency(t.amount)}
