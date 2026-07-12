@@ -4,18 +4,27 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   TrendingUp, LayoutDashboard, Mic, Clock, RefreshCw,
   Settings, LogOut, ChevronLeft, ChevronRight, CreditCard, Shield,
+  Zap, CheckSquare, FolderKanban, CalendarDays, RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
 import { supabase } from '@/lib/supabase/client'
 
-const NAV_ITEMS = [
+const FINANCE_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/registrar', label: 'Registrar', icon: Mic, highlight: true },
   { href: '/timeline', label: 'Histórico', icon: Clock },
   { href: '/cartoes', label: 'Cartões', icon: CreditCard },
   { href: '/recorrencias', label: 'Recorrências', icon: RefreshCw },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
+]
+
+const PROD_ITEMS = [
+  { href: '/produtividade', label: 'Visão geral', icon: Zap },
+  { href: '/produtividade/hoje', label: 'Hoje', icon: CalendarDays },
+  { href: '/produtividade/tarefas', label: 'Tarefas', icon: CheckSquare },
+  { href: '/produtividade/projetos', label: 'Projetos', icon: FolderKanban },
+  { href: '/produtividade/revisao', label: 'Revisão Semanal', icon: RotateCcw },
 ]
 
 export default function Sidebar() {
@@ -54,8 +63,9 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-4 space-y-1">
-        {NAV_ITEMS.map(({ href, label, icon: Icon, highlight }) => {
+      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+        {/* Financeiro */}
+        {FINANCE_ITEMS.map(({ href, label, icon: Icon, highlight }) => {
           const active = pathname === href
           return (
             <Link
@@ -70,22 +80,47 @@ export default function Sidebar() {
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
               )}
             >
-              <Icon className={cn('shrink-0', collapsed ? 'w-5 h-5' : 'w-5 h-5',
-                active
-                  ? highlight ? 'text-white' : 'text-primary-500'
-                  : 'text-slate-400'
+              <Icon className={cn('shrink-0 w-5 h-5',
+                active ? highlight ? 'text-white' : 'text-primary-500' : 'text-slate-400'
               )} />
-              {!collapsed && (
-                <span className="text-sm font-medium">{label}</span>
-              )}
-              {!collapsed && highlight && (
-                <span className="ml-auto w-2 h-2 rounded-full bg-white/60 animate-pulse" />
-              )}
-              {/* Tooltip when collapsed */}
+              {!collapsed && <span className="text-sm font-medium">{label}</span>}
+              {!collapsed && highlight && <span className="ml-auto w-2 h-2 rounded-full bg-white/60 animate-pulse" />}
               {collapsed && (
-                <div className="absolute left-full ml-3 px-2 py-1 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
-                  {label}
-                </div>
+                <div className="absolute left-full ml-3 px-2 py-1 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">{label}</div>
+              )}
+            </Link>
+          )
+        })}
+
+        {/* Separador Produtividade */}
+        <div className="pt-3 pb-1">
+          {!collapsed
+            ? <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3">Produtividade</p>
+            : <div className="h-px bg-slate-100 mx-2" />
+          }
+        </div>
+
+        {/* Produtividade */}
+        {PROD_ITEMS.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href || (href !== '/produtividade' && pathname.startsWith(href))
+          const isMain = href === '/produtividade'
+          const mainActive = isMain && pathname === '/produtividade'
+          const isActive = isMain ? mainActive : active
+          return (
+            <Link
+              key={href}
+              href={href}
+              title={collapsed ? label : undefined}
+              className={cn(
+                'flex items-center rounded-xl transition-all relative group',
+                collapsed ? 'justify-center h-11 w-11 mx-auto' : 'gap-3 px-3 py-2.5',
+                isActive ? 'bg-primary-50 text-primary-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+              )}
+            >
+              <Icon className={cn('shrink-0 w-5 h-5', isActive ? 'text-primary-500' : 'text-slate-400')} />
+              {!collapsed && <span className="text-sm font-medium">{label}</span>}
+              {collapsed && (
+                <div className="absolute left-full ml-3 px-2 py-1 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">{label}</div>
               )}
             </Link>
           )

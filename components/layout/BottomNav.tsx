@@ -24,6 +24,11 @@ export default function BottomNav() {
   const canViewAdmin = isAdmin && (activeProfile?.isOwner ?? false)
 
   const moreItems = [
+    { href: '/produtividade', label: '⚡ Produtividade' },
+    { href: '/produtividade/hoje', label: '📅 Hoje (Prod.)' },
+    { href: '/produtividade/tarefas', label: '✅ Tarefas' },
+    { href: '/produtividade/projetos', label: '📁 Projetos' },
+    { href: '/produtividade/revisao', label: '🔄 Revisão Semanal' },
     { href: '/recorrencias', label: '🔄 Recorrências' },
     { href: '/configuracoes', label: '⚙️ Configurações' },
     ...(canViewAdmin ? [{ href: '/admin', label: '🛡️ Admin' }] : []),

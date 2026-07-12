@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Zap, Plus, CheckCircle2, Circle, Inbox, FolderKanban,
-  ChevronRight, Target, Flame, ArrowRight, AlertTriangle,
+  ChevronRight, Target, Flame, ArrowRight, AlertTriangle, RefreshCw,
 } from 'lucide-react'
 import { format, isToday, isPast, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -110,6 +110,21 @@ export default function ProdutividadePage() {
 
       {/* Sub-nav */}
       <ProdSubNav />
+
+      {/* Revisão semanal CTA */}
+      <button
+        onClick={() => router.push('/produtividade/revisao')}
+        className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-indigo-50 to-primary-50 border border-primary-100 rounded-2xl hover:from-indigo-100 hover:to-primary-100 transition-all"
+      >
+        <div className="w-9 h-9 bg-primary-500 rounded-xl flex items-center justify-center shrink-0">
+          <RefreshCw className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex-1 text-left">
+          <p className="text-sm font-bold text-slate-800">Revisão Semanal</p>
+          <p className="text-xs text-slate-400">Feche a semana com clareza e planeje a próxima</p>
+        </div>
+        <ArrowRight className="w-4 h-4 text-primary-400 shrink-0" />
+      </button>
 
       {appError && (
         <ErrorBanner title={appError.title} description={appError.description} action={appError.action} severity={appError.severity} onClose={() => setAppError(null)} />

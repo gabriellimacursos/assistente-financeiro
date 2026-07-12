@@ -776,6 +776,16 @@ export const HELP_CONTENT: Record<string, HelpEntry> = {
     ],
   },
 
+  'prod.review': {
+    title: 'Revisão Semanal',
+    description: 'Um ritual guiado para fechar a semana com clareza e abrir a próxima com foco. Dura em média 15 minutos e garante que nada importante caia no esquecimento.',
+    tips: [
+      'Faça toda sexta-feira ou no início do final de semana — nunca pule, é o hábito mais importante do sistema.',
+      'Seja honesto no passo de pendências: arrastar tarefas indefinidamente é pior do que cancelar.',
+      'Ao planejar a próxima semana, defina no máximo 3 entregas por categoria.',
+    ],
+  },
+
   'prod.focus': {
     title: 'Sessão de Foco',
     description: 'Um bloco de tempo cronometrado dedicado a uma única tarefa, sem distrações. Baseado na técnica Pomodoro adaptada: períodos longos de foco (padrão 75 min) intercalados com pausas ativas (15 min).',
