@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 import { NextRequest, NextResponse } from 'next/server'
-import { format, addDays } from 'date-fns'
+import { format, addDays, subDays } from 'date-fns'
 
 function getSupabase() {
   return createClient(
@@ -110,6 +110,57 @@ export async function GET(req: NextRequest) {
           })
         }
       }
+    }
+
+    // ── Productivity: today's tasks ─────────────────────────────────────────
+    try {
+      const todayStr = format(today, 'yyyy-MM-dd')
+
+      const { data: todayTasks } = await supabase
+        .from('productivity_tasks')
+        .select('title, priority')
+        .eq('user_id', userId)
+        .eq('scheduled_date', todayStr)
+        .neq('status', 'done')
+        .neq('status', 'cancelled')
+        .neq('status', 'archived')
+        .order('priority', { ascending: false })
+        .limit(3)
+
+      if (todayTasks && todayTasks.length > 0) {
+        const count = todayTasks.length
+        const first = todayTasks[0].title
+        const rest  = count > 1 ? ` e mais ${count - 1}` : ''
+        notifications.push({
+          title: `📋 ${count} tarefa${count > 1 ? 's' : ''} para hoje`,
+          body:  first + rest,
+          url:   '/produtividade/hoje',
+          tag:   'tasks-today',
+        })
+      }
+
+      const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd')
+      const { data: overdueTasks } = await supabase
+        .from('productivity_tasks')
+        .select('title')
+        .eq('user_id', userId)
+        .lte('scheduled_date', yesterdayStr)
+        .neq('status', 'done')
+        .neq('status', 'cancelled')
+        .neq('status', 'archived')
+        .limit(10)
+
+      if (overdueTasks && overdueTasks.length > 0) {
+        const count = overdueTasks.length
+        notifications.push({
+          title: `⚠️ ${count} tarefa${count > 1 ? 's' : ''} em atraso`,
+          body:  overdueTasks[0].title + (count > 1 ? ` e mais ${count - 1}` : ''),
+          url:   '/produtividade/tarefas',
+          tag:   'tasks-overdue',
+        })
+      }
+    } catch {
+      // productivity tables may not exist — skip silently
     }
 
     // Send all notifications to this user's devices

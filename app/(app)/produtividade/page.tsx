@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Zap, Plus, CheckCircle2, Circle, Inbox, FolderKanban,
-  ChevronRight, Target, Flame, ArrowRight, AlertTriangle, RefreshCw,
+  ChevronRight, Target, Flame, ArrowRight, AlertTriangle, RefreshCw, Bell,
 } from 'lucide-react'
 import { format, isToday, isPast, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -11,6 +11,8 @@ import { useProductivityStore } from '@/lib/store/useProductivityStore'
 import { formatError } from '@/lib/errors'
 import ErrorBanner from '@/components/shared/ErrorBanner'
 import ProdSubNav from '@/components/shared/ProdSubNav'
+import { usePushPermission } from '@/components/shared/PushManager'
+import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import HelpTooltip from '@/components/shared/HelpTooltip'
 import type { ErrorCode } from '@/lib/errors'
@@ -25,6 +27,10 @@ export default function ProdutividadePage() {
   const [quickCapture, setQuickCapture] = useState('')
   const [capturing, setCapturing] = useState(false)
   const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
+  const [testingPush, setTestingPush] = useState(false)
+  const [pushTestResult, setPushTestResult] = useState<'ok' | 'error' | null>(null)
+
+  const { permission, subscribed, subscribe } = usePushPermission()
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const todayLabel = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })
@@ -59,6 +65,24 @@ export default function ProdutividadePage() {
   }, [todayFocus, tasks])
 
   const missionText = todayFocus?.main_mission_text || missionTask?.title
+
+  async function handleTestPush() {
+    setTestingPush(true)
+    setPushTestResult(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Sem sessão')
+      const res = await fetch('/api/push/test-tasks', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      setPushTestResult(res.ok ? 'ok' : 'error')
+    } catch {
+      setPushTestResult('error')
+    } finally {
+      setTestingPush(false)
+    }
+  }
 
   async function handleQuickCapture() {
     const content = quickCapture.trim()
@@ -280,6 +304,47 @@ export default function ProdutividadePage() {
             <span className="text-sm text-slate-400">Criar primeiro projeto</span>
             <ArrowRight className="w-4 h-4 text-slate-400" />
           </button>
+        )}
+      </div>
+
+      {/* Notificações de tarefas */}
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Bell className="w-4 h-4 text-primary-500" />
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Notificações de tarefas</h2>
+        </div>
+        {!subscribed ? (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500">
+              Ative as notificações para receber um resumo das suas tarefas todo dia às 8h da manhã.
+            </p>
+            <button
+              onClick={subscribe}
+              className="w-full py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <Bell className="w-4 h-4" /> Ativar notificações
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 py-2 px-3 bg-income-50 rounded-xl">
+              <Bell className="w-4 h-4 text-income-500 shrink-0" />
+              <p className="text-xs text-income-700 font-medium">Notificações ativas — resumo todo dia às 8h</p>
+            </div>
+            <button
+              onClick={handleTestPush}
+              disabled={testingPush}
+              className="w-full py-2 bg-slate-100 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-200 disabled:opacity-40 transition-colors"
+            >
+              {testingPush ? 'Enviando…' : 'Testar notificação agora'}
+            </button>
+            {pushTestResult === 'ok' && (
+              <p className="text-xs text-income-600 text-center">Notificação enviada! Verifique seu dispositivo.</p>
+            )}
+            {pushTestResult === 'error' && (
+              <p className="text-xs text-expense-600 text-center">Erro ao enviar. Verifique as permissões do navegador.</p>
+            )}
+          </div>
         )}
       </div>
 
