@@ -24,6 +24,8 @@ export type ErrorCode =
   | 'ADM-001' | 'ADM-002' | 'ADM-003' | 'ADM-004'
   // Pagamento de cartão
   | 'PAY-001'
+  // Orçamentos
+  | 'BUD-001' | 'BUD-002' | 'BUD-003'
 
 interface ErrorDef {
   title: string
@@ -231,6 +233,26 @@ export const ERROR_CATALOG: Record<ErrorCode, ErrorDef> = {
   'PAY-001': {
     title: 'Falha ao marcar fatura como paga',
     description: 'Não foi possível registrar o pagamento da fatura do cartão.',
+    action: 'Verifique sua conexão e tente novamente.',
+    severity: 'error',
+  },
+
+  // ── Orçamentos ──
+  'BUD-001': {
+    title: 'Falha ao atualizar orçamento',
+    description: 'Não foi possível salvar o limite mensal da categoria.',
+    action: 'Verifique sua conexão e tente novamente.',
+    severity: 'error',
+  },
+  'BUD-002': {
+    title: 'Falha ao criar orçamento',
+    description: 'Não foi possível salvar o novo orçamento mensal.',
+    action: 'Verifique sua conexão e tente novamente.',
+    severity: 'error',
+  },
+  'BUD-003': {
+    title: 'Falha ao remover orçamento',
+    description: 'Não foi possível excluir o orçamento.',
     action: 'Verifique sua conexão e tente novamente.',
     severity: 'error',
   },

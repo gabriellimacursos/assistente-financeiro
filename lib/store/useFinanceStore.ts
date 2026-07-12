@@ -1,7 +1,7 @@
 'use client'
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase/client'
-import type { Transaction, Recurrence, ViewMode, Mode, CreditCard, CategoryItem, UserProfile, ProfilePermissions } from '@/types'
+import type { Transaction, Recurrence, ViewMode, Mode, CreditCard, CategoryItem, UserProfile, ProfilePermissions, Budget } from '@/types'
 import { OWNER_PERMISSIONS, DEFAULT_MEMBER_PERMISSIONS } from '@/types'
 import { AppError } from '@/lib/errors'
 
@@ -57,6 +57,7 @@ interface FinanceStore {
   transactions: Transaction[]
   recurrences: Recurrence[]
   cards: CreditCard[]
+  budgets: Budget[]
   profiles: UserProfile[]
   activeProfileId: string
   categoriesPersonal: CategoryItem[]
@@ -92,6 +93,8 @@ interface FinanceStore {
   addCard: (card: CreditCard) => Promise<void>
   updateCard: (id: string, data: Partial<CreditCard>) => Promise<void>
   removeCard: (id: string) => Promise<void>
+  setBudget: (category: string, mode: Mode, monthly_limit: number) => Promise<void>
+  removeBudget: (category: string, mode: Mode) => Promise<void>
 }
 
 function uuid() {
@@ -304,6 +307,7 @@ export const useFinanceStore = create<FinanceStore>()(
     transactions: [],
     recurrences: [],
     cards: [],
+    budgets: [],
     profiles: [],
     activeProfileId: '',
     categoriesPersonal: [...DEFAULT_CATEGORIES_PERSONAL],
@@ -336,6 +340,7 @@ export const useFinanceStore = create<FinanceStore>()(
             cardsRes,
             categoriesRes,
             registryRes,
+            budgetsRes,
           ] = await Promise.all([
             supabase.from('profiles').select('*').order('created_at', { ascending: true }),
             supabase.from('transactions').select('*').order('date', { ascending: false }),
@@ -343,6 +348,7 @@ export const useFinanceStore = create<FinanceStore>()(
             supabase.from('credit_cards').select('*').order('created_at', { ascending: false }),
             supabase.from('categories').select('*').order('created_at', { ascending: true }),
             supabase.from('user_registry').select('status, is_admin').eq('user_id', userId).single(),
+            supabase.from('budgets').select('*').order('created_at', { ascending: true }),
           ])
 
           for (const res of [profilesRes, transactionsRes, recurrencesRes, cardsRes, categoriesRes]) {
@@ -362,6 +368,14 @@ export const useFinanceStore = create<FinanceStore>()(
             transactions: (transactionsRes.data ?? []).map(transactionFromDb),
             recurrences: (recurrencesRes.data ?? []).map(recurrenceFromDb),
             cards: (cardsRes.data ?? []).map(cardFromDb),
+            budgets: (budgetsRes.data ?? []).map((row: any): Budget => ({
+              id: row.id,
+              user_id: row.user_id,
+              category: row.category,
+              mode: row.mode,
+              monthly_limit: Number(row.monthly_limit),
+              created_at: row.created_at,
+            })),
             categoriesPersonal: mergeCategories(DEFAULT_CATEGORIES_PERSONAL, personalCats),
             categoriesBusiness: mergeCategories(DEFAULT_CATEGORIES_BUSINESS, businessCats),
             activeProfileId: (profilesRes.data ?? []).some((p: any) => p.id === get().activeProfileId)
@@ -551,6 +565,37 @@ export const useFinanceStore = create<FinanceStore>()(
         if (get().cloudUserId) {
           const { error } = await supabase.from('credit_cards').delete().eq('id', id)
           if (error) { set({ cards: prev }); throw new AppError('CARD-003', error.message) }
+        }
+      },
+
+      setBudget: async (category, mode, monthly_limit) => {
+        const userId = get().cloudUserId
+        const existing = get().budgets.find(b => b.category === category && b.mode === mode)
+        if (existing) {
+          const prev = get().budgets
+          const next = prev.map(b => b.category === category && b.mode === mode ? { ...b, monthly_limit } : b)
+          set({ budgets: next })
+          if (userId) {
+            const { error } = await supabase.from('budgets').update({ monthly_limit }).eq('id', existing.id)
+            if (error) { set({ budgets: prev }); throw new AppError('BUD-001', error.message) }
+          }
+        } else {
+          const item: Budget = { id: uuid(), user_id: userId ?? undefined, category, mode, monthly_limit, created_at: new Date().toISOString() }
+          set((s) => ({ budgets: [...s.budgets, item] }))
+          if (userId) {
+            const { error } = await supabase.from('budgets').upsert({ id: item.id, user_id: userId, category, mode, monthly_limit, created_at: item.created_at })
+            if (error) { set((s) => ({ budgets: s.budgets.filter(b => b.id !== item.id) })); throw new AppError('BUD-002', error.message) }
+          }
+        }
+      },
+
+      removeBudget: async (category, mode) => {
+        const prev = get().budgets
+        const item = prev.find(b => b.category === category && b.mode === mode)
+        set((s) => ({ budgets: s.budgets.filter(b => !(b.category === category && b.mode === mode)) }))
+        if (get().cloudUserId && item) {
+          const { error } = await supabase.from('budgets').delete().eq('id', item.id)
+          if (error) { set({ budgets: prev }); throw new AppError('BUD-003', error.message) }
         }
       },
     })

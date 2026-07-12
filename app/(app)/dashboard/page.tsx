@@ -5,6 +5,7 @@ import {
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Mic, Sparkles, AlertTriangle, CheckCircle, XCircle,
   ChevronLeft, ChevronRight, CreditCard, RefreshCw, X,
+  Target, Wallet,
 } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
@@ -73,7 +74,7 @@ function txInPeriod(txDate: Date, type: PeriodType, anchor: Date): boolean {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { transactions, viewMode, setViewMode, cards, updateTransaction, recurrences } = useFinanceStore()
+  const { transactions, viewMode, setViewMode, cards, updateTransaction, recurrences, budgets } = useFinanceStore()
   const [periodType, setPeriodType] = useState<PeriodType>('month')
   const [anchor, setAnchor] = useState<Date>(new Date())
   const [confirmPayCard, setConfirmPayCard] = useState<{
@@ -355,6 +356,54 @@ export default function DashboardPage() {
     : savingsRate >= 20 ? 'bg-income-50'
     : savingsRate > 0   ? 'bg-amber-50'
     : 'bg-expense-50'
+
+  // Progresso dos orçamentos mensais (sempre mês atual, independente do período selecionado)
+  const budgetProgress = useMemo(() => {
+    if (budgets.length === 0) return []
+    const now = new Date()
+    return budgets
+      .filter(b => viewMode === 'all' || b.mode === viewMode)
+      .map(b => {
+        const spent = transactions
+          .filter(t =>
+            t.category === b.category &&
+            t.mode === b.mode &&
+            t.type === 'expense' &&
+            t.status === 'confirmed' &&
+            isSameMonth(parseISO(t.date), now)
+          )
+          .reduce((s, t) => s + t.amount, 0)
+        const pct = b.monthly_limit > 0 ? Math.round((spent / b.monthly_limit) * 100) : 0
+        return { ...b, spent, pct }
+      })
+      .sort((a, b) => b.pct - a.pct)
+  }, [budgets, transactions, viewMode])
+
+  // Projeção de caixa 30 dias baseada em recorrências ativas
+  const cashFlow30 = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const in30 = addDays(today, 30)
+    let incomeTotal = 0
+    let expenseTotal = 0
+    const events: { date: string; label: string; amount: number; type: 'income' | 'expense' }[] = []
+    recurrences
+      .filter(r => r.active && (viewMode === 'all' || r.mode === viewMode))
+      .forEach(r => {
+        const nextDate = parseISO(r.next_date)
+        if (nextDate >= today && nextDate <= in30) {
+          if (r.type === 'income') incomeTotal += r.amount
+          else expenseTotal += r.amount
+          events.push({ date: r.next_date, label: r.title, amount: r.amount, type: r.type })
+        }
+      })
+    return {
+      incomeTotal,
+      expenseTotal,
+      net: incomeTotal - expenseTotal,
+      events: events.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6),
+    }
+  }, [recurrences, viewMode])
 
   return (
     <div className="p-4 lg:p-8 space-y-6 max-w-6xl mx-auto">
@@ -709,6 +758,102 @@ export default function DashboardPage() {
                     <span className="text-xs font-medium text-slate-600">{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Orçamentos mensais */}
+      {budgetProgress.length > 0 && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-primary-50 rounded-xl flex items-center justify-center shrink-0">
+              <Target className="w-4 h-4 text-primary-500" />
+            </div>
+            <h3 className="font-semibold text-slate-800">Orçamento mensal</h3>
+            <span className="text-xs text-slate-400 ml-auto">mês atual</span>
+          </div>
+          <div className="space-y-4">
+            {budgetProgress.map(b => {
+              const isOver    = b.pct > 100
+              const isWarning = b.pct >= 80 && !isOver
+              const barColor  = isOver ? '#F43F5E' : isWarning ? '#F59E0B' : '#10B981'
+              const textColor = isOver ? 'text-expense-500' : isWarning ? 'text-amber-500' : 'text-income-500'
+              return (
+                <div key={`${b.category}-${b.mode}`} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-slate-700 truncate">{b.category}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={cn('text-xs font-bold', textColor)}>{formatCurrency(b.spent)}</span>
+                      <span className="text-[10px] text-slate-400">/ {formatCurrency(b.monthly_limit)}</span>
+                      {isOver && (
+                        <span className="text-[10px] font-bold text-white bg-expense-500 px-1.5 py-0.5 rounded-full">Estourou</span>
+                      )}
+                      {isWarning && (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">{b.pct}%</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(b.pct, 100)}%`, background: barColor }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Projeção de caixa 30 dias */}
+      {cashFlow30.events.length > 0 && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
+              <Wallet className="w-4 h-4 text-indigo-500" />
+            </div>
+            <h3 className="font-semibold text-slate-800">Próximos 30 dias</h3>
+            <span className="text-xs text-slate-400 ml-auto">recorrências</span>
+          </div>
+
+          {/* Resumo entradas/saídas */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="bg-income-50 rounded-2xl p-3 text-center">
+              <p className="text-[10px] text-slate-400 mb-0.5">Entradas</p>
+              <p className="text-sm font-bold text-income-600">+{formatCurrency(cashFlow30.incomeTotal)}</p>
+            </div>
+            <div className="bg-expense-50 rounded-2xl p-3 text-center">
+              <p className="text-[10px] text-slate-400 mb-0.5">Saídas</p>
+              <p className="text-sm font-bold text-expense-500">-{formatCurrency(cashFlow30.expenseTotal)}</p>
+            </div>
+            <div className={cn('rounded-2xl p-3 text-center', cashFlow30.net >= 0 ? 'bg-income-50' : 'bg-expense-50')}>
+              <p className="text-[10px] text-slate-400 mb-0.5">Líquido</p>
+              <p className={cn('text-sm font-bold', cashFlow30.net >= 0 ? 'text-income-600' : 'text-expense-500')}>
+                {cashFlow30.net >= 0 ? '+' : '-'}{formatCurrency(Math.abs(cashFlow30.net))}
+              </p>
+            </div>
+          </div>
+
+          {/* Lista de eventos */}
+          <div className="space-y-1">
+            {cashFlow30.events.map((e, i) => (
+              <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+                <div className={cn('w-7 h-7 rounded-xl flex items-center justify-center shrink-0',
+                  e.type === 'income' ? 'bg-income-50' : 'bg-expense-50')}>
+                  {e.type === 'income'
+                    ? <TrendingUp className="w-3 h-3 text-income-500" />
+                    : <TrendingDown className="w-3 h-3 text-expense-500" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-slate-800 truncate">{e.label}</p>
+                  <p className="text-[10px] text-slate-400">{format(parseISO(e.date), "d 'de' MMM", { locale: ptBR })}</p>
+                </div>
+                <span className={cn('text-xs font-semibold shrink-0', e.type === 'income' ? 'text-income-500' : 'text-expense-500')}>
+                  {e.type === 'income' ? '+' : '-'}{formatCurrency(e.amount)}
+                </span>
               </div>
             ))}
           </div>

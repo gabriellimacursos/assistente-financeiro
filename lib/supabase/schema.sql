@@ -118,6 +118,19 @@ create table system_settings (
 );
 
 -- =====================================================
+-- BUDGETS (orçamentos mensais por categoria)
+-- =====================================================
+create table if not exists budgets (
+  id            uuid default uuid_generate_v4() primary key,
+  user_id       uuid references auth.users(id) on delete cascade not null,
+  category      text not null,
+  mode          text check (mode in ('personal', 'business')) not null,
+  monthly_limit numeric(12, 2) not null,
+  created_at    timestamptz default now(),
+  unique(user_id, category, mode)
+);
+
+-- =====================================================
 -- ROW LEVEL SECURITY
 -- =====================================================
 alter table profiles enable row level security;
@@ -148,6 +161,10 @@ create policy "users_own_ai_logs" on ai_interpretations
   for all using (auth.uid() = user_id);
 
 create policy "users_own_settings" on system_settings
+  for all using (auth.uid() = user_id);
+
+alter table budgets enable row level security;
+create policy "users_own_budgets" on budgets
   for all using (auth.uid() = user_id);
 
 -- =====================================================

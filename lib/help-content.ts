@@ -578,6 +578,18 @@ export const HELP_CONTENT: Record<string, HelpEntry> = {
 
   // ─── CONFIGURAÇÕES (entradas adicionais) ──────────────────────────────────
 
+  'config.budgets': {
+    title: 'Orçamentos Mensais',
+    description: 'Define um teto de gasto por categoria a cada mês. Quando você se aproxima ou ultrapassa o limite, uma barra de alerta aparece no Dashboard para avisar.',
+    tips: [
+      'Selecione uma categoria de saída, informe o limite mensal e salve.',
+      'No Dashboard, a barra fica verde (ok), amarela (acima de 80%) ou vermelha (estourado).',
+      'Cada orçamento é independente por modo — você pode ter limites diferentes para Empresa e Pessoal.',
+      'Orçamentos são opcionais — funciona perfeitamente sem eles.',
+    ],
+    example: 'Limite de R$ 800/mês para Alimentação no pessoal',
+  },
+
   'config.category-direction': {
     title: 'Direção da Categoria (↑↓↕)',
     description: 'Define para qual tipo de lançamento a categoria aparece: apenas Entradas (↑), apenas Saídas (↓), ou ambas (↕). Isso filtra as opções disponíveis ao registrar um lançamento.',

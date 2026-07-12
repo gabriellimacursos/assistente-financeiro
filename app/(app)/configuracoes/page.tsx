@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronRight, LogOut, Plus, X, Building2, User,
-  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen, Settings2, Bell,
+  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen, Settings2, Bell, Target,
 } from 'lucide-react'
 import PushToggleButton from '@/components/shared/PushManager'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
@@ -50,6 +50,7 @@ export default function ConfiguracoesPage() {
   const {
     categoriesPersonal, categoriesBusiness, addCategory, removeCategory,
     profiles, addProfile, removeProfile, updateProfile, activeProfileId, clearCloudSession,
+    budgets, setBudget, removeBudget,
   } = useFinanceStore()
   const [catMode, setCatMode] = useState<Mode>('business')
   const [newCat, setNewCat] = useState('')
@@ -70,6 +71,12 @@ export default function ConfiguracoesPage() {
   const [securitySaved, setSecuritySaved] = useState<string | null>(null)
   const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Budget state
+  const [budgetMode, setBudgetMode] = useState<Mode>('business')
+  const [budgetCategory, setBudgetCategory] = useState('')
+  const [budgetLimit, setBudgetLimit] = useState('')
+  const [removingBudget, setRemovingBudget] = useState<string | null>(null)
 
   const activeProfile = profiles.find(p => p.id === activeProfileId)
 
@@ -587,6 +594,141 @@ export default function ConfiguracoesPage() {
           <p className="text-xs text-slate-400 text-center">
             Toque em uma categoria para removê-la
           </p>
+        </div>
+      </div>
+
+      {/* ── Orçamentos mensais ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Orçamentos</p>
+            <HelpTooltip id="config.budgets" />
+          </div>
+          <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
+            <button
+              onClick={() => { setBudgetMode('business'); setBudgetCategory('') }}
+              className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                budgetMode === 'business' ? 'bg-primary-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+            >
+              <Building2 className="w-3 h-3" /> Empresa
+            </button>
+            <button
+              onClick={() => { setBudgetMode('personal'); setBudgetCategory('') }}
+              className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                budgetMode === 'personal' ? 'bg-primary-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+            >
+              <User className="w-3 h-3" /> Pessoal
+            </button>
+          </div>
+        </div>
+
+        <div className="card p-4 space-y-4">
+          {/* Formulário para adicionar orçamento */}
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500 font-medium">Defina um limite mensal por categoria de gasto</p>
+            <div className="flex gap-2">
+              <select
+                value={budgetCategory}
+                onChange={e => setBudgetCategory(e.target.value)}
+                className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white transition-all text-slate-700"
+              >
+                <option value="">Selecionar categoria…</option>
+                {(budgetMode === 'business' ? categoriesBusiness : categoriesPersonal)
+                  .filter(c => c.direction === 'expense' || c.direction === 'both')
+                  .map(c => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))
+                }
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">R$</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={budgetLimit}
+                  onChange={e => setBudgetLimit(e.target.value)}
+                  placeholder="Limite mensal"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white transition-all"
+                />
+              </div>
+              <button
+                disabled={!budgetCategory || !budgetLimit || Number(budgetLimit) <= 0 || saving}
+                onClick={async () => {
+                  if (!budgetCategory || !budgetLimit) return
+                  setSaving(true)
+                  setAppError(null)
+                  try {
+                    await setBudget(budgetCategory, budgetMode, Number(budgetLimit))
+                    setBudgetCategory('')
+                    setBudgetLimit('')
+                  } catch (err) {
+                    setAppError(formatError(err))
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+                className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
+              >
+                <Target className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Lista de orçamentos existentes */}
+          {budgets.filter(b => b.mode === budgetMode).length > 0 ? (
+            <div className="space-y-2">
+              {budgets.filter(b => b.mode === budgetMode).map(b => {
+                const key = `${b.category}-${b.mode}`
+                return removingBudget === key ? (
+                  <div key={key} className="flex items-center gap-2 px-3 py-2.5 bg-expense-50 border border-expense-200 rounded-xl">
+                    <span className="text-xs font-semibold text-expense-700 flex-1 truncate">Remover "{b.category}"?</span>
+                    <button
+                      disabled={saving}
+                      onClick={async () => {
+                        setSaving(true)
+                        setAppError(null)
+                        try {
+                          await removeBudget(b.category, b.mode)
+                          setRemovingBudget(null)
+                        } catch (err) {
+                          setAppError(formatError(err))
+                        } finally {
+                          setSaving(false)
+                        }
+                      }}
+                      className="text-xs font-bold text-white bg-expense-500 px-3 py-1.5 rounded-lg disabled:opacity-40"
+                    >Remover</button>
+                    <button onClick={() => setRemovingBudget(null)} className="text-xs text-slate-500 font-semibold px-2 py-1.5">Cancelar</button>
+                  </div>
+                ) : (
+                  <div key={key} className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl">
+                    <div className="w-7 h-7 bg-primary-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Target className="w-3.5 h-3.5 text-primary-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 truncate">{b.category}</p>
+                      <p className="text-[10px] text-slate-400">
+                        Limite: R$ {b.monthly_limit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setRemovingBudget(key)}
+                      className="w-7 h-7 bg-slate-200 hover:bg-expense-100 rounded-lg flex items-center justify-center transition-colors shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5 text-slate-500 hover:text-expense-500" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 text-center py-2">
+              Nenhum orçamento definido para {budgetMode === 'business' ? 'empresa' : 'pessoal'}
+            </p>
+          )}
         </div>
       </div>
 

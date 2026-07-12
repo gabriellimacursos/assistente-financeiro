@@ -123,6 +123,15 @@ export interface UserProfile {
   preferredMode?: 'business' | 'personal' | 'both'
 }
 
+export interface Budget {
+  id: string
+  user_id?: string
+  category: string
+  mode: Mode
+  monthly_limit: number
+  created_at: string
+}
+
 export interface CreditCard {
   id: string
   name: string
