@@ -2,15 +2,16 @@
 import { useState, useMemo } from 'react'
 import {
   Plus, X, Check, TrendingUp, TrendingDown, CreditCard,
-  Building2, User, Trash2, Edit2, ChevronLeft, CheckCircle, BarChart2,
+  Building2, User, Trash2, Edit2, ChevronLeft, CheckCircle, BarChart2, Pencil,
 } from 'lucide-react'
 import { useFinanceStore, getProfilePermissions } from '@/lib/store/useFinanceStore'
 import { formatCurrency, formatTime, cn } from '@/lib/utils'
 import HelpTooltip from '@/components/shared/HelpTooltip'
 import ErrorBanner from '@/components/shared/ErrorBanner'
+import EditTransactionModal from '@/components/shared/EditTransactionModal'
 import { formatError } from '@/lib/errors'
 import type { ErrorCode } from '@/lib/errors'
-import type { CreditCard as CC, Mode } from '@/types'
+import type { CreditCard as CC, Mode, Transaction } from '@/types'
 import { isSameMonth, subMonths, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -35,12 +36,19 @@ function emptyCard(mode: Mode): Omit<CC, 'id' | 'created_at'> {
 }
 
 export default function CartoesPage() {
-  const { cards, addCard, updateCard, removeCard, transactions, updateTransaction, activeMode, profiles, activeProfileId } = useFinanceStore()
+  const {
+    cards, addCard, updateCard, removeCard,
+    transactions, updateTransaction, addTransaction, removeTransaction,
+    addCategory, addRecurrence,
+    categoriesPersonal, categoriesBusiness,
+    activeMode, profiles, activeProfileId,
+  } = useFinanceStore()
   const perms = getProfilePermissions(profiles, activeProfileId)
   const canManage = perms.canManageCards
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editingCard, setEditingCard] = useState<CC | null>(null)
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [form, setForm] = useState<Omit<CC, 'id' | 'created_at'>>(emptyCard(activeMode))
   const [limitStr, setLimitStr] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -109,10 +117,11 @@ export default function CartoesPage() {
 
   // ── Card detail view ──────────────────────────────────────────────────────
   if (selectedCard && selectedCardData) {
+    // Total this month (pending + confirmed) — same as card list
     const spent = spendingByCard[selectedCard] || 0
     const pct = selectedCardData.limit ? Math.min(100, (spent / selectedCardData.limit) * 100) : null
 
-    // Pending transactions (fatura em aberto)
+    // Pending transactions (fatura em aberto) — all dates
     const pendingTx = cardTransactions.filter(t => t.type === 'expense' && t.status === 'pending')
 
     // Confirmed spend this month
@@ -202,6 +211,7 @@ export default function CartoesPage() {
     }
 
     return (
+      <>
       <div className="max-w-2xl mx-auto p-4 lg:p-8 space-y-5">
         {/* Back */}
         <button
@@ -244,11 +254,11 @@ export default function CartoesPage() {
         {/* 3 quick metrics */}
         <div className="grid grid-cols-3 gap-3">
           <div className="card p-4 text-center space-y-1">
-            <p className="text-xs text-slate-500 font-medium">Este mês</p>
+            <p className="text-xs text-slate-500 font-medium">Confirmado</p>
             <p className="text-base font-bold text-expense-500 leading-tight">{formatCurrency(confirmedSpent)}</p>
           </div>
           <div className={cn('card p-4 text-center space-y-1', pendingTotal > 0 && 'border-amber-300 bg-amber-50')}>
-            <p className="text-xs text-slate-500 font-medium">Pendente</p>
+            <p className="text-xs text-slate-500 font-medium">A pagar</p>
             <p className={cn('text-base font-bold leading-tight', pendingTotal > 0 ? 'text-amber-500' : 'text-slate-400')}>
               {formatCurrency(pendingTotal)}
             </p>
@@ -449,34 +459,75 @@ export default function CartoesPage() {
           ) : (
             <div className="space-y-2">
               {cardTransactions.map(t => (
-                <div key={t.id} className="card p-3.5 flex items-center gap-3">
+                <button
+                  key={t.id}
+                  onClick={() => setEditingTx(t)}
+                  className="card p-3.5 flex items-center gap-3 w-full text-left hover:shadow-card-hover transition-all active:scale-[0.99] group"
+                >
                   <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
                     t.type === 'income' ? 'bg-income-50' : 'bg-expense-50')}>
                     {t.type === 'income' ? <TrendingUp className="w-4 h-4 text-income-500" /> : <TrendingDown className="w-4 h-4 text-expense-500" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">{t.description}</p>
-                    <div className="flex gap-1.5 text-xs text-slate-400">
+                    <div className="flex gap-1.5 text-xs text-slate-400 flex-wrap">
                       <span>{formatTime(t.date)}</span>
                       <span>·</span>
                       <span>{t.category}</span>
                       {t.status === 'pending' && (
                         <>
                           <span>·</span>
-                          <span className="text-amber-500 font-medium">pendente</span>
+                          <span className="text-amber-500 font-semibold">A pagar</span>
                         </>
                       )}
                     </div>
                   </div>
-                  <span className={cn('font-bold text-sm shrink-0', t.type === 'income' ? 'text-income-500' : 'text-expense-500')}>
-                    {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                  </span>
-                </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={cn('font-bold text-sm', t.type === 'income' ? 'text-income-500' : 'text-expense-500')}>
+                      {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                    </span>
+                    <Pencil className="w-3.5 h-3.5 text-slate-300 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </button>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Edit transaction modal */}
+      {editingTx && (
+        <EditTransactionModal
+          tx={editingTx}
+          onClose={() => setEditingTx(null)}
+          onSave={async (data) => {
+            try {
+              await updateTransaction(editingTx.id, data)
+              setEditingTx(null)
+            } catch (err) {
+              setAppError(formatError(err))
+            }
+          }}
+          onDelete={async () => {
+            try {
+              await removeTransaction(editingTx.id)
+              setEditingTx(null)
+            } catch (err) {
+              setAppError(formatError(err))
+            }
+          }}
+          categoriesPersonal={categoriesPersonal}
+          categoriesBusiness={categoriesBusiness}
+          cards={cards}
+          addCategory={addCategory}
+          addTransaction={addTransaction}
+          removeTransaction={removeTransaction}
+          addRecurrence={addRecurrence}
+          canEdit={perms.canEditTransactions}
+          canDelete={perms.canDeleteTransactions}
+        />
+      )}
+      </>
     )
   }
 
