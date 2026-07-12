@@ -11,6 +11,7 @@ import { formatError } from '@/lib/errors'
 import ErrorBanner from '@/components/shared/ErrorBanner'
 import ProdSubNav from '@/components/shared/ProdSubNav'
 import { cn } from '@/lib/utils'
+import HelpTooltip from '@/components/shared/HelpTooltip'
 import { TASK_STATUS_LABELS, PRIORITY_LABELS } from '@/types/productivity'
 import type { ErrorCode } from '@/lib/errors'
 import type { TaskStatus, Priority } from '@/types/productivity'
@@ -168,6 +169,7 @@ export default function TarefasPage() {
           <h1 className="text-xl font-bold text-slate-800">Tarefas</h1>
           <p className="text-xs text-slate-400">{tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled' && t.status !== 'archived').length} ativas</p>
         </div>
+        <HelpTooltip id="prod.tasks" />
         <button
           onClick={() => setShowAdd(!showAdd)}
           className="w-9 h-9 bg-primary-500 rounded-xl flex items-center justify-center text-white hover:bg-primary-600 transition-all active:scale-95 shrink-0"

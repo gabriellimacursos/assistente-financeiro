@@ -721,4 +721,69 @@ export const HELP_CONTENT: Record<string, HelpEntry> = {
       'Você pode trocar de perfil a qualquer momento indo em Configurações.',
     ],
   },
+
+  // ─── PRODUTIVIDADE ───────────────────────────────────────────────────────
+
+  'prod.overview': {
+    title: 'Visão Geral de Produtividade',
+    description: 'Painel central do seu sistema de produtividade. Reúne sua missão do dia, tarefas de hoje, entregas semanais, projetos ativos e a caixa de captura rápida em um único lugar.',
+    tips: [
+      'Comece o dia definindo sua missão principal — a coisa mais importante que, se concluída, tornará o dia bem-sucedido.',
+      'Use a captura rápida para registrar ideias e tarefas sem interromper o que está fazendo. Processe a caixa de entrada quando tiver tempo.',
+      'O alerta de projetos ativos aparece quando você excede o limite configurado — foco em poucos projetos produz mais resultado.',
+    ],
+  },
+
+  'prod.mission': {
+    title: 'Missão Principal do Dia',
+    description: 'A tarefa ou objetivo mais importante do seu dia. Com base na pesquisa de Gary Keller (The One Thing), focar em uma única missão principal antes de qualquer outra coisa maximiza a produtividade real.',
+    tips: [
+      'Escolha algo que, se concluído, tornaria os outros objetivos mais fáceis ou até desnecessários.',
+      'Você pode escrever a missão livremente ou vincular a uma tarefa existente no sistema.',
+      'Se não souber qual é sua missão, pergunte: "O que eu preciso fazer hoje que fará diferença real nos meus resultados?"',
+    ],
+    example: 'Finalizar a proposta para o cliente X e enviar até as 14h',
+  },
+
+  'prod.weekly': {
+    title: 'Entregas da Semana',
+    description: 'Os resultados concretos que você precisa entregar nesta semana, organizados por categoria. Diferente de tarefas, são compromissos de resultado — o que vai existir no mundo quando a semana terminar.',
+    tips: [
+      'Defina no máximo 3 entregas por categoria para manter o foco.',
+      'Clique em uma entrega para marcá-la como concluída.',
+      'As categorias podem ser personalizadas em Configurações → Produtividade.',
+    ],
+    example: 'Entregar: relatório mensal revisado e enviado ao cliente',
+  },
+
+  'prod.tasks': {
+    title: 'Gerenciamento de Tarefas',
+    description: 'Lista completa das suas tarefas organizada por status. A aba Entrada mostra itens capturados que precisam ser processados. Próximas são tarefas prontas para fazer. Em espera são tarefas que dependem de outra pessoa ou evento.',
+    tips: [
+      'Processe a caixa de entrada diariamente: converta cada item em tarefa, projeto ou descarte.',
+      'Use "Próximas" para a lista de tarefas que você vai fazer em breve, sem data específica.',
+      'Tarefas em "Espera" ficam com quem está aguardando — ajuda a não perder o follow-up.',
+    ],
+  },
+
+  'prod.projects': {
+    title: 'Projetos',
+    description: 'Um projeto é qualquer objetivo que exige mais de uma ação para ser concluído. Organizado por área de atuação, com barra de progresso baseada nas tarefas vinculadas.',
+    tips: [
+      'Mantenha no máximo 2-3 projetos ativos simultaneamente para não diluir a atenção.',
+      'Projetos que não podem avançar agora devem ir para "Em espera" ou "Depois", não para a lixeira.',
+      'O percentual de progresso é calculado automaticamente pelas tarefas concluídas vinculadas ao projeto.',
+    ],
+  },
+
+  'prod.capture': {
+    title: 'Captura Rápida',
+    description: 'Um lugar para registrar qualquer pensamento, ideia ou tarefa sem precisar organizar na hora. O objetivo é esvaziar a mente rapidamente e processar depois com calma.',
+    tips: [
+      'Capture tudo que passa pela sua cabeça — é melhor registrar e descartar do que deixar na cabeça.',
+      'Processe a caixa de entrada pelo menos uma vez por dia, de preferência no início ou fim do expediente.',
+      'Durante o processamento, cada item vira: uma tarefa, um projeto, uma referência ou vai para o lixo.',
+    ],
+    example: 'Ligar para fornecedor sobre entrega atrasada',
+  },
 }

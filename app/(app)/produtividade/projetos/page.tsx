@@ -9,6 +9,7 @@ import { formatError } from '@/lib/errors'
 import ErrorBanner from '@/components/shared/ErrorBanner'
 import ProdSubNav from '@/components/shared/ProdSubNav'
 import { cn } from '@/lib/utils'
+import HelpTooltip from '@/components/shared/HelpTooltip'
 import { PROJECT_STATUS_LABELS, PRIORITY_LABELS } from '@/types/productivity'
 import type { ErrorCode } from '@/lib/errors'
 import type { ProjectStatus, Priority, WorkType } from '@/types/productivity'
@@ -126,6 +127,7 @@ export default function ProjetosPage() {
             {activeProjects.length}/{maxActive} ativos
           </p>
         </div>
+        <HelpTooltip id="prod.projects" />
         <button
           onClick={() => setShowAdd(!showAdd)}
           className="w-9 h-9 bg-primary-500 rounded-xl flex items-center justify-center text-white hover:bg-primary-600 transition-all active:scale-95 shrink-0"
