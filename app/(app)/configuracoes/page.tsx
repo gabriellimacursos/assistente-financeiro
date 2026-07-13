@@ -3,10 +3,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronRight, LogOut, Plus, X, Building2, User,
-  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen, Settings2, Bell, Target,
+  TrendingUp, TrendingDown, ArrowUpDown, Trash2, Shield, Lock, LockOpen, Settings2, Bell, Target, Zap,
 } from 'lucide-react'
 import PushToggleButton from '@/components/shared/PushManager'
 import { useFinanceStore } from '@/lib/store/useFinanceStore'
+import { useProductivityStore } from '@/lib/store/useProductivityStore'
 import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Mode, ProfilePermissions } from '@/types'
@@ -45,6 +46,8 @@ function directionBadge(direction: Direction) {
   return                              { label: '↕', title: 'Ambos',   cls: 'bg-slate-100 text-slate-500' }
 }
 
+const REVIEW_DAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+
 export default function ConfiguracoesPage() {
   const router = useRouter()
   const {
@@ -52,6 +55,7 @@ export default function ConfiguracoesPage() {
     profiles, addProfile, removeProfile, updateProfile, activeProfileId, clearCloudSession,
     budgets, setBudget, removeBudget,
   } = useFinanceStore()
+  const { settings: prodSettings, updateSettings: updateProdSettings } = useProductivityStore()
   const [catMode, setCatMode] = useState<Mode>('business')
   const [newCat, setNewCat] = useState('')
   const [newDirection, setNewDirection] = useState<Direction>('expense')
@@ -77,6 +81,17 @@ export default function ConfiguracoesPage() {
   const [budgetCategory, setBudgetCategory] = useState('')
   const [budgetLimit, setBudgetLimit] = useState('')
   const [removingBudget, setRemovingBudget] = useState<string | null>(null)
+
+  // Productivity settings state
+  const [outcomeLabel0, setOutcomeLabel0] = useState(prodSettings?.outcome_labels?.[0] ?? 'Dinheiro agora')
+  const [outcomeLabel1, setOutcomeLabel1] = useState(prodSettings?.outcome_labels?.[1] ?? 'Construção do futuro')
+  const [outcomeLabel2, setOutcomeLabel2] = useState(prodSettings?.outcome_labels?.[2] ?? 'Melhoria operacional')
+  const [focusDuration,  setFocusDuration]  = useState(prodSettings?.focus_duration  ?? 75)
+  const [breakDuration,  setBreakDuration]  = useState(prodSettings?.break_duration  ?? 15)
+  const [maxProjects,    setMaxProjects]    = useState(prodSettings?.max_active_projects ?? 2)
+  const [reviewDay,      setReviewDay]      = useState(prodSettings?.weekly_review_day ?? 5)
+  const [savingProd,     setSavingProd]     = useState(false)
+  const [prodSaved,      setProdSaved]      = useState(false)
 
   const activeProfile = profiles.find(p => p.id === activeProfileId)
 
@@ -145,6 +160,30 @@ export default function ConfiguracoesPage() {
       setAppError(formatError(err))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSaveProdSettings() {
+    setSavingProd(true)
+    setAppError(null)
+    try {
+      await updateProdSettings({
+        outcome_labels: [
+          outcomeLabel0.trim() || 'Dinheiro agora',
+          outcomeLabel1.trim() || 'Construção do futuro',
+          outcomeLabel2.trim() || 'Melhoria operacional',
+        ],
+        focus_duration:       Math.max(15, Math.min(120, focusDuration)),
+        break_duration:       Math.max(5,  Math.min(60,  breakDuration)),
+        max_active_projects:  Math.max(1,  Math.min(10,  maxProjects)),
+        weekly_review_day:    reviewDay,
+      })
+      setProdSaved(true)
+      setTimeout(() => setProdSaved(false), 2000)
+    } catch (err) {
+      setAppError(formatError(err))
+    } finally {
+      setSavingProd(false)
     }
   }
 
@@ -731,6 +770,120 @@ export default function ConfiguracoesPage() {
           )}
         </div>
       </div>
+
+      {/* ── Produtividade ── */}
+      {prodSettings && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-3">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Produtividade</p>
+            <HelpTooltip id="config.productivity" />
+          </div>
+          <div className="card p-5 space-y-5">
+
+            {/* Categorias das entregas semanais */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Categorias das entregas semanais</p>
+              <p className="text-[11px] text-slate-400 mb-3">Nomes exibidos ao definir entregas no "Hoje" e na revisão semanal.</p>
+              <div className="space-y-2">
+                {[
+                  { val: outcomeLabel0, set: setOutcomeLabel0, placeholder: 'Ex: Dinheiro agora' },
+                  { val: outcomeLabel1, set: setOutcomeLabel1, placeholder: 'Ex: Construção do futuro' },
+                  { val: outcomeLabel2, set: setOutcomeLabel2, placeholder: 'Ex: Melhoria operacional' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-5 h-5 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">{i + 1}</span>
+                    <input
+                      value={item.val}
+                      onChange={e => item.set(e.target.value)}
+                      placeholder={item.placeholder}
+                      className="flex-1 px-3 py-2 rounded-xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-white transition-all"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Timer de foco */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Timer de foco</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-amber-50 rounded-2xl p-3">
+                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-2">Foco</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setFocusDuration(d => Math.max(15, d - 5))}
+                      className="w-8 h-8 bg-white rounded-lg border border-amber-200 text-amber-600 font-bold hover:bg-amber-100 transition-colors"
+                    >−</button>
+                    <span className="flex-1 text-center text-lg font-bold text-slate-800">{focusDuration}<span className="text-xs font-normal text-slate-400"> min</span></span>
+                    <button
+                      onClick={() => setFocusDuration(d => Math.min(120, d + 5))}
+                      className="w-8 h-8 bg-white rounded-lg border border-amber-200 text-amber-600 font-bold hover:bg-amber-100 transition-colors"
+                    >+</button>
+                  </div>
+                </div>
+                <div className="bg-teal-50 rounded-2xl p-3">
+                  <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wider mb-2">Pausa</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setBreakDuration(d => Math.max(5, d - 5))}
+                      className="w-8 h-8 bg-white rounded-lg border border-teal-200 text-teal-600 font-bold hover:bg-teal-100 transition-colors"
+                    >−</button>
+                    <span className="flex-1 text-center text-lg font-bold text-slate-800">{breakDuration}<span className="text-xs font-normal text-slate-400"> min</span></span>
+                    <button
+                      onClick={() => setBreakDuration(d => Math.min(60, d + 5))}
+                      className="w-8 h-8 bg-white rounded-lg border border-teal-200 text-teal-600 font-bold hover:bg-teal-100 transition-colors"
+                    >+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Limite de projetos + Dia de revisão */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Projetos ativos</p>
+                <div className="flex items-center gap-2 bg-slate-50 rounded-2xl p-3">
+                  <button
+                    onClick={() => setMaxProjects(p => Math.max(1, p - 1))}
+                    className="w-8 h-8 bg-white rounded-lg border border-slate-200 text-slate-600 font-bold hover:bg-slate-100 transition-colors"
+                  >−</button>
+                  <span className="flex-1 text-center text-lg font-bold text-slate-800">{maxProjects}</span>
+                  <button
+                    onClick={() => setMaxProjects(p => Math.min(10, p + 1))}
+                    className="w-8 h-8 bg-white rounded-lg border border-slate-200 text-slate-600 font-bold hover:bg-slate-100 transition-colors"
+                  >+</button>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Dia da revisão</p>
+                <select
+                  value={reviewDay}
+                  onChange={e => setReviewDay(Number(e.target.value))}
+                  className="w-full px-3 py-3 rounded-2xl border-2 border-slate-200 text-sm outline-none focus:border-primary-400 bg-slate-50 text-slate-700"
+                >
+                  {REVIEW_DAY_LABELS.map((label, i) => (
+                    <option key={i} value={i}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Save button */}
+            <button
+              onClick={handleSaveProdSettings}
+              disabled={savingProd}
+              className={cn(
+                'w-full py-3 font-semibold rounded-2xl transition-all text-sm',
+                prodSaved
+                  ? 'bg-income-500 text-white'
+                  : 'bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40'
+              )}
+            >
+              {savingProd ? 'Salvando…' : prodSaved ? '✓ Salvo!' : 'Salvar configurações de produtividade'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Notificações ── */}
       <div>

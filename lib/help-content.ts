@@ -776,6 +776,16 @@ export const HELP_CONTENT: Record<string, HelpEntry> = {
     ],
   },
 
+  'config.productivity': {
+    title: 'Configurações de Produtividade',
+    description: 'Personalize como o sistema de produtividade se comporta para o seu ritmo de trabalho.',
+    tips: [
+      'As categorias das entregas aparecem na tela "Hoje" e na Revisão Semanal. Nomeie-as de acordo com o que faz sentido para o seu contexto.',
+      'O timer de foco usa sessões longas (padrão 75 min) porque estudos mostram que sessões curtas demais fragmentam a atenção. Ajuste ao seu nível de experiência.',
+      'Limite de projetos ativos: comece com 2. Mais do que isso tende a diluir a atenção e reduz o resultado final.',
+    ],
+  },
+
   'prod.review': {
     title: 'Revisão Semanal',
     description: 'Um ritual guiado para fechar a semana com clareza e abrir a próxima com foco. Dura em média 15 minutos e garante que nada importante caia no esquecimento.',
