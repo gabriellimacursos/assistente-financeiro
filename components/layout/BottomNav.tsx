@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Mic, Clock, CreditCard, MoreHorizontal } from 'lucide-react'
+import { LayoutDashboard, Mic, Clock, Zap, MoreHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,7 @@ const PRIMARY_NAV = [
   { href: '/dashboard', label: 'Início', icon: LayoutDashboard },
   { href: '/timeline', label: 'Histórico', icon: Clock },
   { href: '/registrar', label: 'Registrar', icon: Mic, highlight: true },
-  { href: '/cartoes', label: 'Cartões', icon: CreditCard },
+  { href: '/produtividade', label: 'Foco', icon: Zap, matchPrefix: true },
   { href: '/_more', label: 'Mais', icon: MoreHorizontal, isMore: true },
 ]
 
@@ -24,11 +24,7 @@ export default function BottomNav() {
   const canViewAdmin = isAdmin && (activeProfile?.isOwner ?? false)
 
   const moreItems = [
-    { href: '/produtividade', label: '⚡ Produtividade' },
-    { href: '/produtividade/hoje', label: '📅 Hoje (Prod.)' },
-    { href: '/produtividade/tarefas', label: '✅ Tarefas' },
-    { href: '/produtividade/projetos', label: '📁 Projetos' },
-    { href: '/produtividade/revisao', label: '🔄 Revisão Semanal' },
+    { href: '/cartoes', label: '💳 Cartões' },
     { href: '/recorrencias', label: '🔄 Recorrências' },
     { href: '/configuracoes', label: '⚙️ Configurações' },
     ...(canViewAdmin ? [{ href: '/admin', label: '🛡️ Admin' }] : []),
@@ -53,8 +49,10 @@ export default function BottomNav() {
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-100">
         <div className="flex items-center justify-around h-16 px-1">
-          {PRIMARY_NAV.map(({ href, label, icon: Icon, highlight, isMore }) => {
-            const active = pathname === href || (isMore && moreItems.some(i => i.href === pathname))
+          {PRIMARY_NAV.map(({ href, label, icon: Icon, highlight, isMore, matchPrefix }) => {
+            const active = matchPrefix
+              ? pathname.startsWith(href)
+              : pathname === href || (isMore && moreItems.some(i => i.href === pathname))
 
             if (highlight) {
               return (
@@ -84,8 +82,8 @@ export default function BottomNav() {
 
             return (
               <Link key={href} href={href} className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2">
-                <Icon className={cn('w-5 h-5 transition-colors', pathname === href ? 'text-primary-500' : 'text-slate-400')} />
-                <span className={cn('text-[10px] font-medium', pathname === href ? 'text-primary-500' : 'text-slate-400')}>{label}</span>
+                <Icon className={cn('w-5 h-5 transition-colors', active ? 'text-primary-500' : 'text-slate-400')} />
+                <span className={cn('text-[10px] font-medium', active ? 'text-primary-500' : 'text-slate-400')}>{label}</span>
               </Link>
             )
           })}

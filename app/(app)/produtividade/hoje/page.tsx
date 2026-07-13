@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import {
-  Flame, Plus, CheckCircle2, Circle, X, ChevronDown, Target, Pencil, Check, Timer,
+  Flame, Plus, CheckCircle2, Circle, X, Target, Pencil, Check, Timer, Trash2,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { format, startOfWeek } from 'date-fns'
@@ -19,7 +19,7 @@ export default function HojePage() {
   const router = useRouter()
   const {
     settings, tasks, todayFocus, weeklyOutcomes, areas,
-    setTodayFocus, addTask, completeTask, addWeeklyOutcome, updateWeeklyOutcome,
+    setTodayFocus, addTask, completeTask, removeTask, addWeeklyOutcome, updateWeeklyOutcome, removeWeeklyOutcome,
     prodSyncStatus,
   } = useProductivityStore()
 
@@ -38,6 +38,10 @@ export default function HojePage() {
   // Task rápida
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [addingTask, setAddingTask] = useState(false)
+
+  // Delete confirmations
+  const [confirmDeleteTaskId, setConfirmDeleteTaskId] = useState<string | null>(null)
+  const [confirmDeleteOutcomeId, setConfirmDeleteOutcomeId] = useState<string | null>(null)
 
   // Entrega semanal rápida
   const [newOutcomeTitle, setNewOutcomeTitle] = useState('')
@@ -120,6 +124,26 @@ export default function HojePage() {
       await completeTask(id)
     } catch (err) {
       setAppError(formatError(err))
+    }
+  }
+
+  async function handleDeleteTask(id: string) {
+    try {
+      await removeTask(id)
+      setConfirmDeleteTaskId(null)
+    } catch (err) {
+      setAppError(formatError(err))
+      setConfirmDeleteTaskId(null)
+    }
+  }
+
+  async function handleDeleteOutcome(id: string) {
+    try {
+      await removeWeeklyOutcome(id)
+      setConfirmDeleteOutcomeId(null)
+    } catch (err) {
+      setAppError(formatError(err))
+      setConfirmDeleteOutcomeId(null)
     }
   }
 
@@ -307,7 +331,7 @@ export default function HojePage() {
             <p className="text-sm text-slate-400 text-center py-3">Nenhuma tarefa agendada para hoje</p>
           )}
           {todayTasks.map(t => (
-            <div key={t.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl group">
+            <div key={t.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
               <button onClick={() => handleCompleteTask(t.id)} className="shrink-0">
                 <Circle className="w-4 h-4 text-slate-300 hover:text-income-500 transition-colors" />
               </button>
@@ -317,6 +341,16 @@ export default function HojePage() {
               </div>
               {t.priority === 'high' && (
                 <span className="shrink-0 text-[10px] font-bold text-expense-500 bg-expense-50 px-1.5 py-0.5 rounded-full">Alta</span>
+              )}
+              {confirmDeleteTaskId === t.id ? (
+                <div className="flex gap-1 shrink-0">
+                  <button onClick={() => handleDeleteTask(t.id)} className="px-2 py-1 bg-expense-500 text-white text-[10px] font-bold rounded-lg">Apagar</button>
+                  <button onClick={() => setConfirmDeleteTaskId(null)} className="w-6 h-6 bg-slate-200 rounded-lg flex items-center justify-center"><X className="w-3 h-3 text-slate-500" /></button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDeleteTaskId(t.id)} className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-expense-400 hover:bg-expense-50 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
           ))}
@@ -417,17 +451,28 @@ export default function HojePage() {
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{label}</p>
               <div className="space-y-2">
                 {items.map(o => (
-                  <button key={o.id} onClick={() => handleToggleOutcome(o.id, o.status)}
-                    className={cn('w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all',
-                      o.status === 'done' ? 'bg-income-50' : 'bg-slate-50 hover:bg-slate-100')}>
-                    {o.status === 'done'
-                      ? <CheckCircle2 className="w-4 h-4 text-income-500 shrink-0" />
-                      : <Circle className="w-4 h-4 text-slate-300 shrink-0" />
-                    }
-                    <span className={cn('text-sm flex-1 truncate', o.status === 'done' ? 'line-through text-slate-400' : 'text-slate-700 font-medium')}>
+                  <div key={o.id} className={cn('flex items-center gap-3 p-3 rounded-xl transition-all',
+                    o.status === 'done' ? 'bg-income-50' : 'bg-slate-50')}>
+                    <button onClick={() => handleToggleOutcome(o.id, o.status)} className="shrink-0">
+                      {o.status === 'done'
+                        ? <CheckCircle2 className="w-4 h-4 text-income-500" />
+                        : <Circle className="w-4 h-4 text-slate-300 hover:text-income-400 transition-colors" />
+                      }
+                    </button>
+                    <span onClick={() => handleToggleOutcome(o.id, o.status)} className={cn('text-sm flex-1 truncate cursor-pointer', o.status === 'done' ? 'line-through text-slate-400' : 'text-slate-700 font-medium')}>
                       {o.title}
                     </span>
-                  </button>
+                    {confirmDeleteOutcomeId === o.id ? (
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => handleDeleteOutcome(o.id)} className="px-2 py-1 bg-expense-500 text-white text-[10px] font-bold rounded-lg">Apagar</button>
+                        <button onClick={() => setConfirmDeleteOutcomeId(null)} className="w-6 h-6 bg-slate-200 rounded-lg flex items-center justify-center"><X className="w-3 h-3 text-slate-500" /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmDeleteOutcomeId(o.id)} className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-expense-400 hover:bg-expense-50 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 ))}
                 {items.length === 0 && (
                   <p className="text-xs text-slate-400 pl-3">Nenhuma entrega nesta categoria</p>

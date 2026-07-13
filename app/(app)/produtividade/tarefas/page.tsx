@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react'
 import {
   CheckSquare, Plus, CheckCircle2, Circle, Clock, Inbox,
-  AlertTriangle, ArrowRight, ChevronDown, X, Filter,
+  AlertTriangle, ArrowRight, ChevronDown, X, Trash2,
 } from 'lucide-react'
 import { format, isPast, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -35,7 +35,7 @@ const PRIORITY_COLORS: Record<Priority, string> = {
 export default function TarefasPage() {
   const {
     tasks, projects, areas, inbox,
-    addTask, completeTask, updateTask, processCapture, discardCapture,
+    addTask, completeTask, updateTask, removeTask, processCapture, discardCapture,
     prodSyncStatus,
   } = useProductivityStore()
 
@@ -54,6 +54,7 @@ export default function TarefasPage() {
 
   // Capture processing
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const filteredTasks = useMemo(() => {
     switch (activeTab) {
@@ -145,6 +146,16 @@ export default function TarefasPage() {
       await discardCapture(captureId)
     } catch (err) {
       setAppError(formatError(err))
+    }
+  }
+
+  async function handleDeleteTask(id: string) {
+    try {
+      await removeTask(id)
+      setConfirmDeleteId(null)
+    } catch (err) {
+      setAppError(formatError(err))
+      setConfirmDeleteId(null)
     }
   }
 
@@ -354,11 +365,36 @@ export default function TarefasPage() {
                       )}
                     </div>
                   </div>
-                  {task.priority !== 'medium' && (
-                    <span className={cn('shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full', PRIORITY_COLORS[task.priority])}>
-                      {PRIORITY_LABELS[task.priority]}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {task.priority !== 'medium' && (
+                      <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full', PRIORITY_COLORS[task.priority])}>
+                        {PRIORITY_LABELS[task.priority]}
+                      </span>
+                    )}
+                    {confirmDeleteId === task.id ? (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="px-2 py-1 bg-expense-500 text-white text-[10px] font-bold rounded-lg"
+                        >
+                          Apagar
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="w-6 h-6 bg-slate-200 rounded-lg flex items-center justify-center"
+                        >
+                          <X className="w-3 h-3 text-slate-500" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(task.id)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-expense-400 hover:bg-expense-50 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })}

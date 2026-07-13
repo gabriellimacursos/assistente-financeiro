@@ -1,8 +1,8 @@
 'use client'
 import { useState, useMemo } from 'react'
 import {
-  FolderKanban, Plus, ChevronRight, AlertTriangle, X,
-  Circle, CheckCircle2, Archive, Clock, Layers,
+  FolderKanban, Plus, AlertTriangle, X, Trash2,
+  Circle, CheckCircle2, Clock, Layers,
 } from 'lucide-react'
 import { useProductivityStore } from '@/lib/store/useProductivityStore'
 import { formatError } from '@/lib/errors'
@@ -33,13 +33,14 @@ const STATUS_ICON: Record<GroupTab, React.ElementType> = {
 export default function ProjetosPage() {
   const {
     settings, projects, areas, tasks,
-    addProject, updateProject,
+    addProject, updateProject, removeProject,
     prodSyncStatus,
   } = useProductivityStore()
 
   const [activeTab, setActiveTab] = useState<GroupTab>('active')
   const [showAdd, setShowAdd] = useState(false)
   const [appError, setAppError] = useState<{ title: string; description: string; action: string; code?: ErrorCode; severity: 'error' | 'warning' } | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // New project form
   const [newTitle, setNewTitle] = useState('')
@@ -101,6 +102,16 @@ export default function ProjetosPage() {
       await updateProject(id, { status })
     } catch (err) {
       setAppError(formatError(err))
+    }
+  }
+
+  async function handleDeleteProject(id: string) {
+    try {
+      await removeProject(id)
+      setConfirmDeleteId(null)
+    } catch (err) {
+      setAppError(formatError(err))
+      setConfirmDeleteId(null)
     }
   }
 
@@ -280,9 +291,34 @@ export default function ProjetosPage() {
                       <p className="text-[10px] text-slate-400 mt-0.5">{area.icon} {area.name}</p>
                     )}
                   </div>
-                  {project.priority === 'high' && (
-                    <span className="shrink-0 text-[10px] font-bold text-expense-500 bg-expense-50 px-1.5 py-0.5 rounded-full">Alta</span>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {project.priority === 'high' && (
+                      <span className="text-[10px] font-bold text-expense-500 bg-expense-50 px-1.5 py-0.5 rounded-full">Alta</span>
+                    )}
+                    {confirmDeleteId === project.id ? (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleDeleteProject(project.id)}
+                          className="px-2 py-1 bg-expense-500 text-white text-[10px] font-bold rounded-lg"
+                        >
+                          Apagar
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="w-6 h-6 bg-slate-200 rounded-lg flex items-center justify-center"
+                        >
+                          <X className="w-3 h-3 text-slate-500" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(project.id)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-expense-400 hover:bg-expense-50 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Objective */}
